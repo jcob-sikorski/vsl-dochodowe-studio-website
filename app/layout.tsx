@@ -30,8 +30,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Poznaj Model, Dzięki Któremu 40+ Studiów Zarabia Do 600 Tys. zł Rocznie",
-  description: "Bezpłatny warsztat: Złoty Model Biznesowy. Poznaj 5 filarów Dochodowego Studia i przestań zamieniać swój czas na pieniądze.",
+  title: "Jak Zarabiać 20–50 Tys. zł ze Studia Treningu Personalnego, Pracując 5h w Tygodniu",
+  description: "Obejrzyj bezpłatne wideo i umów bezpłatną konsultację: poznaj model, dzięki któremu właściciele studiów treningu personalnego przestają zamieniać swój czas na pieniądze.",
   keywords: [
     "studio treningu personalnego", 
     "biznes fitness", 
@@ -56,8 +56,8 @@ export const metadata: Metadata = {
     apple: "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/6a3689380a683b64fe2824bd.png",
   },
   openGraph: {
-    title: "Poznaj Model, Dzięki Któremu 40+ Studiów Zarabia Do 600 Tys. zł Rocznie",
-    description: "Bezpłatny warsztat: Złoty Model Biznesowy. Poznaj 5 filarów Dochodowego Studia i przestań zamieniać swój czas na pieniądze.",
+    title: "Jak Zarabiać 20–50 Tys. zł z Własnego Studia, Pracując 5h w Tygodniu",
+    description: "Obejrzyj bezpłatne wideo i umów bezpłatną konsultację: poznaj model, dzięki któremu właściciele studiów treningu personalnego przestają zamieniać swój czas na pieniądze.",
     url: "https://dochodowestudio.com", 
     siteName: "Dochodowe Studio",
     locale: "pl_PL",
@@ -73,8 +73,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Poznaj Model, Dzięki Któremu 40+ Studiów Zarabia Do 600 Tys. zł Rocznie",
-    description: "Bezpłatny warsztat: Złoty Model Biznesowy. Poznaj 5 filarów Dochodowego Studia i przestań zamieniać swój czas na pieniądze.",
+    title: "Jak Zarabiać 20–50 Tys. zł ze Studia Treningu Personalnego, Pracując 5h w Tygodniu",
+    description: "Obejrzyj bezpłatne wideo i umów bezpłatną konsultację: poznaj model, dzięki któremu właściciele studiów treningu personalnego przestają zamieniać swój czas na pieniądze.",
     images: ["https://ucarecdn.com/2fb844e9-c929-46c4-853d-057ef2ecad41/unnamed1.webp"],
   },
   robots: {
