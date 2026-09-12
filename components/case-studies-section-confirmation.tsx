@@ -191,7 +191,7 @@ export function CaseStudiesSectionConfirmation() {
             <h3 className="text-[1.18rem] min-[390px]:text-[1.32rem] sm:text-[1.48rem] font-bold leading-tight tracking-tight text-neutral-950">
               I{" "}
               <span className="underline decoration-neutral-950 decoration-[1.8px] sm:decoration-[2px] underline-offset-[3px] [text-decoration-skip-ink:none]">
-                wielu innych właścicieli...
+                50+ innych właścicieli...
               </span>
             </h3>
           </div>
