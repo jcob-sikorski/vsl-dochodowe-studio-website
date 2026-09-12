@@ -23,7 +23,7 @@ const DASHBOARD_STRIPS: DashboardStrip[] = [
   },
   {
     highlight: "Ucieczka z Sieciówki",
-    subtext: "Igor Czobot (Kobiecy Portal Lublin) – z sufitu na etacie do własnego studia z zespołem",
+    subtext: "Igor Czobot (Kobiecy Portal Lublin) – z etatu w sieciówce do własnego studia z zespołem",
     imageSrc: "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/02059f6c-c119-4ed3-a480-01bac9d1d210.png",
     alt: "Igor Czobot wywiad z otwarcia Kobiecy Portal",
   },
@@ -45,7 +45,7 @@ export function CaseStudiesSectionConfirmation() {
   return (
     <section className="w-full bg-white pt-1 pb-14 px-4 sm:px-6 font-sans">
       <div className="mx-auto flex w-full max-w-[22.5rem] sm:max-w-[25.5rem] flex-col items-center">
-        
+
         {/* Top Highlighter Header */}
         <div className="inline-block bg-[#faea75] px-5 min-[390px]:px-6 py-1 text-center">
           <h2 className="text-[1.2rem] min-[390px]:text-[1.35rem] sm:text-[1.5rem] font-bold leading-tight tracking-tight text-black">
@@ -74,7 +74,7 @@ export function CaseStudiesSectionConfirmation() {
             href="https://www.youtube.com/watch?v=oy-C_Nn6aW0&t=1s"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900 hover:text-[#ea580c] transition-colors"
+            className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900 hover:underline"
           >
             40k Zysku/Mies. • Otworzył Drugie Studio
           </a>
@@ -98,7 +98,7 @@ export function CaseStudiesSectionConfirmation() {
             href="https://www.youtube.com/watch?v=CNuw67TbZhA&t=2s"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900 hover:text-[#ea580c] transition-colors"
+            className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900 hover:underline"
           >
             54k Zysku/Mies. • W 90% oddelegowane
           </a>
@@ -131,7 +131,7 @@ export function CaseStudiesSectionConfirmation() {
 
           <div className="relative mt-2 w-full overflow-hidden rounded-[1.25rem] border border-neutral-200/80 shadow-xs">
             <img
-              src="https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/ba4a3bef-891e-465e-a44f-7a2752211efd.png"
+              src="https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/0168c657-bbf7-4044-83ec-ffc180df5034.png"
               alt="Klaudia Ostrowska Fitko Toruń"
               className="h-auto w-full block"
             />
@@ -166,7 +166,9 @@ export function CaseStudiesSectionConfirmation() {
           {DASHBOARD_STRIPS.map((strip) => (
             <div key={strip.highlight} className="flex w-full flex-col items-center">
               <h4 className="text-center text-[1.15rem] min-[390px]:text-[1.25rem] leading-tight tracking-tight text-neutral-900">
-                <span className="font-extrabold text-[#ea580c]">{strip.highlight}</span>{" "}
+                <span className="font-extrabold text-neutral-900 underline decoration-neutral-900 decoration-2 underline-offset-2">
+                  {strip.highlight}
+                </span>{" "}
                 <span className="block text-[0.82rem] font-normal text-neutral-600 mt-0.5">
                   {strip.subtext}
                 </span>
