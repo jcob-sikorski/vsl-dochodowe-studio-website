@@ -80,7 +80,7 @@ export function CaseStudiesSection() {
             href="https://www.youtube.com/watch?v=oy-C_Nn6aW0&t=1s"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900 hover:text-[#ea580c] transition-colors"
+            className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900 underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-900 transition-colors"
           >
             40k Zysku/Mies. • Otworzył Drugie Studio
           </a>
@@ -110,7 +110,7 @@ export function CaseStudiesSection() {
             href="https://www.youtube.com/watch?v=CNuw67TbZhA&t=2s"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900 hover:text-[#ea580c] transition-colors"
+            className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900 underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-900 transition-colors"
           >
             54k Zysku/Mies. • W 90% oddelegowane
           </a>
@@ -206,7 +206,7 @@ export function CaseStudiesSection() {
               className="group flex w-full flex-col items-center transition-opacity hover:opacity-95"
             >
               <h4 className="text-center text-[1.15rem] min-[390px]:text-[1.25rem] leading-tight tracking-tight text-neutral-900">
-                <span className="font-extrabold text-[#ea580c] group-hover:underline">
+                <span className="font-extrabold text-neutral-900 group-hover:underline">
                   {strip.highlight}
                 </span>{" "}
                 <span className="block text-[0.82rem] font-normal text-neutral-600 mt-0.5">
