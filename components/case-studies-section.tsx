@@ -4,44 +4,115 @@ import React from "react";
 import Image from "next/image";
 import { ScrollToFormCta } from "@/components/scroll-to-form-cta";
 
-interface DashboardStrip {
-  highlight: string;
-  subtext: string;
+interface TestimonialStrip {
+  name: string;
+  achievement: string;
   imageSrc: string;
   alt: string;
   link?: string;
 }
 
-const DASHBOARD_STRIPS: DashboardStrip[] = [
+const TESTIMONIAL_STRIPS: TestimonialStrip[] = [
   {
-    highlight: "2 Studia PG Power",
-    subtext: "Patryk Grzemski (PG Power) – wdrożenie procedur i pełna niezależność od sali",
-    imageSrc: "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/43d3825b-1a86-400c-943d-7e52e840e2cf.png",
-    alt: "Patryk Grzemski PG Power Case Study",
+    name: "Klaudia Ostrowska",
+    achievement:
+      "Od bycia najlepszym i jedynym trenerem w studio do zespołu 4 osób i poukładanej machiny",
+    imageSrc:
+      "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/0168c657-bbf7-4044-83ec-ffc180df5034.png",
+    alt: "Klaudia Ostrowska case study",
   },
   {
-    highlight: "20.000 zł Zysku z 40 m²",
-    subtext: "Piotr Smulczyk – 2 trenerów w zespole, zysk z małego lokalu i plan na kolejne studio",
-    imageSrc: "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/be616acc-e195-471f-a051-c329bdc6b45a.png",
-    alt: "Piotr Smulczyk wywiad po 6 miesiącach",
+    name: "Piotr Smulczyk",
+    achievement:
+      "Od trenera pracującego w środę do szefa ze studio na pół etatu i 20k zysku",
+    imageSrc:
+      "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/be616acc-e195-471f-a051-c329bdc6b45a.png",
+    alt: "Piotr Smulczyk case study",
   },
   {
-    highlight: "Ucieczka z Sieciówki",
-    subtext: "Igor Czobot (Kobiecy Portal Lublin) – z sufitu na etacie do własnego studia z zespołem",
-    imageSrc: "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/02059f6c-c119-4ed3-a480-01bac9d1d210.png",
-    alt: "Igor Czobot wywiad z otwarcia Kobiecy Portal",
+    name: "Dawid",
+    achievement:
+      "Myślał, że zarabia dużo na online, teraz ma zespół trenerów w kameralnej siłowni i się zdziwił",
+    imageSrc:
+      "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/ac97c037-4d40-4b3d-b4a9-1717b2a7c160.png",
+    alt: "Dawid case study",
   },
   {
-    highlight: "Architektura Marży od Startu",
-    subtext: "Adam Stołowski (STO POWER Łódź) – ułożony proces sprzedaży i wysoka marża przed otwarciem",
-    imageSrc: "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/6aa03671a08d19d927525e54.png",
-    alt: "Adam Stołowski STO POWER",
+    name: "Alicja Wieczorek",
+    achievement:
+      "Od 300h pracy na recepcji i grupówkach do własnego studia i treningów personalnych",
+    imageSrc:
+      "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/ba4a3bef-891e-465e-a44f-7a2752211efd.png",
+    alt: "Alicja Wieczorek case study",
   },
   {
-    highlight: "30.000 zł Zysku Miesięcznie",
-    subtext: "Adrian i Konrad (Stillmotion Tychy) – w pełni oddelegowane studio, 7 trenerów i oddana sprzedaż",
-    imageSrc: "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/6aa037d3641597c752b0cb8a.jpeg",
-    alt: "Stillmotion Tychy Adrian i Konrad Case Study",
+    name: "Michał Cichy",
+    achievement: "Od 2 studio do 3 i podbijania okolicy swoją poukładaną siecią",
+    imageSrc:
+      "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/92cc09e0-0051-438c-938e-a52b7f944eae.png",
+    alt: "Michał Cichy case study",
+  },
+  {
+    name: "Joanna Wójcik",
+    achievement:
+      "Od sekundy przed bankructwem do 66 tysięcy w pierwszym miesiącu współpracy",
+    imageSrc:
+      "https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/a6ae3e71-1df8-4d95-bcc9-49ebec4ff930.png",
+    alt: "Joanna Wójcik case study",
+  },
+];
+
+interface VideoCaseStudy {
+  name: string;
+  achievement: string;
+  muxSrc: string;
+  aspectClass: string;
+  locationKey: string;
+}
+
+const VIDEO_CASE_STUDIES: VideoCaseStudy[] = [
+  {
+    name: "Michał Mekitow Humeńczyk",
+    achievement: "Od 2 studio do 3, menadżera i poukładanych procesów",
+    muxSrc: "https://player.mux.com/ZBeqrGS00CasLkKCYd3DDOutmmfZYpFHGyPXaZ8t2f4g",
+    aspectClass: "aspect-[9/16]",
+    locationKey: "case_study_1",
+  },
+  {
+    name: "Adam Stołowski",
+    achievement: "Od trenera z sieciówki do właściciela studia i zespołu",
+    muxSrc: "https://player.mux.com/ZZSZQncTadSyzUXBLUChNNhG7QDTzahfu9w01wRmwIZ00",
+    aspectClass: "aspect-[9/16]",
+    locationKey: "case_study_2",
+  },
+  {
+    name: "Krzysztof Mariańczyk",
+    achievement:
+      "Od studia, w którym był sterem i okrętem, do 7 trenerów i ciągłych wyjazdów za granicę, gdy studio działa i zarabia!",
+    muxSrc: "https://player.mux.com/ykvVNrkqdlEvoT4jyAO4rIJa7DD4cASnvhmpC01PHrN4",
+    aspectClass: "aspect-[270/481]",
+    locationKey: "case_study_3",
+  },
+  {
+    name: "Igor Czobot",
+    achievement: "Studio Kobiet 115m²",
+    muxSrc: "https://player.mux.com/gC00vzqUsxjFtErmI00hh1O01yMmzLuTQ2NIcFaEPw7iyc",
+    aspectClass: "aspect-[9/16]",
+    locationKey: "case_study_4",
+  },
+  {
+    name: "Karolina Owczarzak",
+    achievement: "Studio treningu siłowego 100m², gmina, 12 tys.",
+    muxSrc: "https://player.mux.com/w8Bfb9flUXXLoV9O17XNKcJRL8GVh71XOwsaEhQe1pg",
+    aspectClass: "aspect-[135/292]",
+    locationKey: "case_study_5",
+  },
+  {
+    name: "Patryk i Paula Grzemscy",
+    achievement: "Od etatów do 2 studio, wolnego czasu i spełniania się w zajawce",
+    muxSrc: "https://player.mux.com/vFbzJuq5BcXXb4U202dN2AhVWmkCfhPE7WxCqLoQbu5k",
+    aspectClass: "aspect-[108/193]",
+    locationKey: "case_study_6",
   },
 ];
 
@@ -60,146 +131,38 @@ export function CaseStudiesSection() {
           </h2>
         </div>
 
-        {/* ================= CASE STUDY 1 ================= */}
-        <div className="mt-6 flex w-full flex-col items-center">
-          <h3 className="text-center text-[1.12rem] min-[390px]:text-[1.24rem] sm:text-[1.38rem] font-bold leading-[1.18] tracking-tight text-neutral-900">
-            Eryk Witecki (Gym Clinic Józefów):<br />Z 25k na sali do 4 trenerów i czasu dla rodziny
-          </h3>
+        {/* ================= VIDEO CASE STUDIES ================= */}
+        {VIDEO_CASE_STUDIES.map((cs, index) => (
+          <React.Fragment key={cs.locationKey}>
+            <div className={`flex w-full flex-col items-center ${index === 0 ? "mt-6" : "mt-7"}`}>
+              <h3 className="text-center text-[1.12rem] min-[390px]:text-[1.24rem] sm:text-[1.38rem] font-bold leading-[1.18] tracking-tight text-neutral-900">
+                {cs.name}:<br />{cs.achievement}
+              </h3>
 
-          <div className="relative mt-2 w-full overflow-hidden rounded-[1.1rem] border border-neutral-200/80 shadow-xs">
-            <Image
-              src="https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/6aa034478de363112b5458c8.jpeg"
-              alt="Eryk Witecki Gym Clinic"
-              width={800}
-              height={450}
-              className="h-auto w-full block"
-            />
-          </div>
+              <div
+                className={`relative mt-2 w-full max-w-[16rem] overflow-hidden rounded-[1.1rem] border border-neutral-200/80 bg-black shadow-xs ${cs.aspectClass} sm:max-w-[18rem]`}
+              >
+                <iframe
+                  src={cs.muxSrc}
+                  className="absolute inset-0 h-full w-full border-0"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                  allowFullScreen
+                  title={`${cs.name} — case study`}
+                />
+              </div>
+            </div>
 
-          <a
-            href="https://www.youtube.com/watch?v=oy-C_Nn6aW0&t=1s"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900 underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-900 transition-colors"
-          >
-            40k Zysku/Mies. • Otworzył Drugie Studio
-          </a>
-        </div>
+            <div className="mt-5 w-full">
+              <ScrollToFormCta location={cs.locationKey} />
+            </div>
+          </React.Fragment>
+        ))}
 
-        <div className="mt-5 w-full">
-          <ScrollToFormCta location="case_study_1" />
-        </div>
-
-        {/* ================= CASE STUDY 2 ================= */}
-        <div className="mt-7 flex w-full flex-col items-center">
-          <h3 className="text-center text-[1.12rem] min-[390px]:text-[1.24rem] sm:text-[1.38rem] font-bold leading-[1.18] tracking-tight text-neutral-900">
-            Joanna Wójcik (Silna Studio):<br />Zajechanie na sali zamienione w 3 trenerów i drugie studio
-          </h3>
-
-          <div className="relative mt-2 w-full overflow-hidden rounded-[1.1rem] border border-neutral-200/80 shadow-xs">
-            <Image
-              src="https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/6aa032fa641597c752b045d3.png"
-              alt="Joanna Wójcik Kraków"
-              width={800}
-              height={450}
-              className="h-auto w-full block"
-            />
-          </div>
-
-          <a
-            href="https://www.youtube.com/watch?v=CNuw67TbZhA&t=2s"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900 underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-900 transition-colors"
-          >
-            54k Zysku/Mies. • W 90% oddelegowane
-          </a>
-        </div>
-
-        <div className="mt-5 w-full">
-          <ScrollToFormCta location="case_study_2" />
-        </div>
-
-        {/* ================= CASE STUDY 3 ================= */}
-        <div className="mt-7 flex w-full flex-col items-center">
-          <h3 className="text-center text-[1.12rem] min-[390px]:text-[1.24rem] sm:text-[1.38rem] font-bold leading-[1.18] tracking-tight text-neutral-900">
-            Karolina Owczarzak (Suszec):<br />Z 3 etatów do własnego studia i 40k zysku/mies.
-          </h3>
-
-          <div className="relative mt-2 w-full overflow-hidden rounded-[1.25rem] border border-neutral-200/80 shadow-xs">
-            <Image
-              src="https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/15316c21-f546-4d32-8b2e-408a797c0f10.png"
-              alt="Karolina Owczarzak Trenerka K"
-              width={800}
-              height={450}
-              className="h-auto w-full block"
-            />
-          </div>
-
-          <p className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900">
-            40 tys. zysku mies. • 0 zł na reklamy • 3 osoby w zespole
-          </p>
-        </div>
-
-        <div className="mt-5 w-full">
-          <ScrollToFormCta location="case_study_3" />
-        </div>
-
-        {/* ================= CASE STUDY 4 ================= */}
-        <div className="mt-7 flex w-full flex-col items-center">
-          <h3 className="text-center text-[1.12rem] min-[390px]:text-[1.24rem] sm:text-[1.38rem] font-bold leading-[1.18] tracking-tight text-neutral-900">
-            Klaudia Ostrowska (Fitko Toruń):<br />40–50k na rękę, 3 trenerki w zespole i zarządzanie z podróży
-          </h3>
-
-          <div className="relative mt-2 w-full overflow-hidden rounded-[1.25rem] border border-neutral-200/80 shadow-xs">
-            <Image
-              src="https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/ba4a3bef-891e-465e-a44f-7a2752211efd.png"
-              alt="Klaudia Ostrowska Fitko Toruń"
-              width={800}
-              height={450}
-              className="h-auto w-full block"
-            />
-          </div>
-
-          <p className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900">
-            40–50 tys. na rękę • 3 trenerki w zespole • Biznes prowadzony z laptopa
-          </p>
-        </div>
-
-        <div className="mt-5 w-full">
-          <ScrollToFormCta location="case_study_4" />
-        </div>
-
-        {/* ================= CASE STUDY 5 ================= */}
-        <div className="mt-7 flex w-full flex-col items-center">
-          <h3 className="text-center text-[1.12rem] min-[390px]:text-[1.24rem] sm:text-[1.38rem] font-bold leading-[1.18] tracking-tight text-neutral-900">
-            Krzysztof Mariańczyk (Champion Katowice):<br />Od zera do 7 trenerów – studio zarabia, kiedy śpi
-          </h3>
-
-          <div className="relative mt-2 w-full overflow-hidden rounded-[1.25rem] border border-neutral-200/80 shadow-xs">
-            <Image
-              src="https://assets.cdn.filesafe.space/XC630scPx5PEZe31LmuL/media/cdcc5416-c085-474b-aae1-5225c2e61570.png"
-              alt="Krzysztof Mariańczyk Champion Katowice"
-              width={800}
-              height={450}
-              className="h-auto w-full block"
-            />
-          </div>
-
-          <p className="mt-2 text-center text-[1.05rem] min-[390px]:text-[1.18rem] font-bold tracking-tight text-neutral-900">
-            7 Osób w Zespole • Czas na obozy i walki
-          </p>
-        </div>
-
-        <div className="mt-5 w-full">
-          <ScrollToFormCta location="case_study_5" />
-        </div>
-
-        {/* ================= DASHBOARD STRIPS LIST ================= */}
+        {/* ================= TESTIMONIAL STRIPS ================= */}
         <div className="mt-9 flex w-full flex-col gap-6">
-          {DASHBOARD_STRIPS.map((strip) => (
+          {TESTIMONIAL_STRIPS.map((strip) => (
             <a
-              key={strip.highlight}
+              key={strip.name}
               href={strip.link || "#"}
               target="_blank"
               rel="noopener noreferrer"
@@ -207,10 +170,10 @@ export function CaseStudiesSection() {
             >
               <h4 className="text-center text-[1.15rem] min-[390px]:text-[1.25rem] leading-tight tracking-tight text-neutral-900">
                 <span className="font-extrabold text-neutral-900 group-hover:underline">
-                  {strip.highlight}
+                  {strip.name}
                 </span>{" "}
                 <span className="block text-[0.82rem] font-normal text-neutral-600 mt-0.5">
-                  {strip.subtext}
+                  {strip.achievement}
                 </span>
               </h4>
 
@@ -228,7 +191,7 @@ export function CaseStudiesSection() {
         </div>
 
         <div className="mt-6 w-full">
-          <ScrollToFormCta location="dashboard_strips" />
+          <ScrollToFormCta location="testimonial_strips" />
         </div>
 
         {/* Bottom Highlighter Banner */}
@@ -245,7 +208,7 @@ export function CaseStudiesSection() {
 
         {/* Social Proof Context Subtext */}
         <p className="mt-2 text-center text-[0.78rem] sm:text-[0.84rem] text-neutral-500 max-w-[21rem]">
-          M.in. Adrian i Konrad (Stillmotion Tychy: 70 podopiecznych, 7 trenerów, 30k dochodu bez sprzedaży) czy Klaudia Ostrowska (Fitko Toruń: 40–50k na rękę, zarządzanie z podróży).
+          M.in. Joanna Wójcik (od sekundy przed bankructwem do 66 tys. zł w pierwszym miesiącu) czy Piotr Smulczyk (studio na pół etatu i 20k zysku).
         </p>
       </div>
     </section>
