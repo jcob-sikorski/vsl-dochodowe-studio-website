@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 226 40% 17%;
+    --primary: 16 76% 61%;
+    --primary-foreground: 0 0% 100%;
+    --border: 220 17% 91%;
+    --radius: 0.5rem;
+
+    /* Added for shadcn-style button variants (secondary/ghost/destructive)
+       and focus rings — previously missing, so those utilities silently
+       generated no CSS. */
+    --ring: 16 76% 61%; /* reuses the coral/primary hue for focus rings */
+    --input: 220 17% 91%; /* matches --border */
+    --secondary: 220 20% 96%;
+    --secondary-foreground: 226 40% 17%;
+    --muted: 220 20% 96%;
+    --muted-foreground: 226 15% 40%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-ink-muted font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Apply a strict lock on both html and body */
+  html, body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply bg-background text-ink-muted font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Headings use Poppins — fully cased, so no uppercase/tracking override
+     needed; italic and mixed-case copy render natively. */
+  h1,
+  h2,
+  h3 {
+    @apply font-display text-ink;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Visible, consistent keyboard focus on every interactive element. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-coral ring-offset-2 ring-offset-white;
+  }
+
+  hr {
+    @apply border-line;
+  }
+}
+
+@layer utilities {
+  /* Digits that don't jitter as the countdown ticks. */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
