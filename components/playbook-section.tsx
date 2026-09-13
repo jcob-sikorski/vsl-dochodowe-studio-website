@@ -3,13 +3,13 @@ import React from "react";
 const PLAYBOOK_URL = "https://dochodowestudio.pl/playbook.pdf"; // TODO: podmień na docelowy link do PDF
 
 const PLAYBOOK_HIGHLIGHTS: string[] = [
-  "Kalkulator błędów — ile realnie kosztują złe decyzje, zanim podpiszesz umowę najmu",
-  "Dwa gotowe awatary klienta — osobny język komunikacji do kobiet 35+ i mężczyzn 40+",
-  "Program 90 dni zamiast pakietu treningów — matematyka, która podnosi przychód z jednego klienta",
-  "Matematyka semi-personal — jak dobra retencja daje +168–264 tys. zł na 10 klientach",
+  "Ile realnie kosztują złe decyzje, zanim podpiszesz umowę najmu",
+  "Osobny język komunikacji do kobiet 35+ i mężczyzn 40+",
+  "Program 90 dni zamiast pakietu treningów",
+  "Jak dobra retencja daje +168–264 tys. zł na 10 klientach",
   "20 pytań przed podpisaniem umowy najmu i trzy poziomy inwestycji w sprzęt (START / PRO / PREMIUM)",
-  "Struktura konsultacji, która sprzedaje — rozmowa, trening pokazowy i domknięcie krok po kroku",
-  "Proces wdrożenia pierwszego trenera w 4–6 tygodni, żeby nie stracić standardu",
+  "Struktura konsultacji, która sprzedaje czyli rozmowa, trening pokazowy i domknięcie krok po kroku",
+  "Proces wdrożenia pierwszego trenera w 4–6 tygodni",
   "21 prawd o prowadzeniu studia i gotowy plan działania na 90 dni do otwarcia",
 ];
 
@@ -68,15 +68,11 @@ export function PlaybookSection() {
     
         {/* Stat Row */}
         <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[0.72rem] sm:text-[0.78rem] font-bold uppercase tracking-widest text-neutral-500">
-          <span>18 Rozdziałów</span>
-          <span aria-hidden className="h-1 w-1 rounded-full bg-neutral-400" />
-          <span>5 Systemów</span>
-          <span aria-hidden className="h-1 w-1 rounded-full bg-neutral-400" />
-          <span>21 Narzędzi</span>
+          <span>Cały Model od Podszewki</span>
         </div>
 
         <p className="mx-auto mt-5 max-w-md text-center text-[0.82rem] sm:text-[0.88rem] font-light leading-[1.5] text-neutral-600">
-          Przekartkuj go przed rozmową, aby zrozumieć, jak działamy od kuchni:
+          Przekartkuj go przed rozmową:
         </p>
 
         {/* Highlights List */}
