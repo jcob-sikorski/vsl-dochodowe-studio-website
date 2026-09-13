@@ -1,8 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Lets the ngrok tunnel load /_next/* assets during local dev.
+  // Hostnames allowed to load /_next/* assets from the dev server.
   // Dev-only: Next ignores this in production builds.
-  allowedDevOrigins: ["pasture-blunt-buckshot.ngrok-free.dev"],
+  allowedDevOrigins: [
+    "vsl-dochodowe-studio-website.vercel.app",
+    "vsl.dochodowestudio.com",
+    "https://pasture-blunt-buckshot.ngrok-free.dev"
+  ],
 
   images: {
     remotePatterns: [
