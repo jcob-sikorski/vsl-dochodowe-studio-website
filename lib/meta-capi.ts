@@ -18,7 +18,7 @@
 
 import crypto from "crypto";
 
-import { buildFbcFromClickId, type Attribution } from "./attribution";
+import { buildFbcFromClickId, hasPaidClick, type Attribution } from "./attribution";
 import { describeError, fetchWithRetry, safeJson, safeText } from "./http";
 
 /* -------------------------------------------------------------------------- *
@@ -30,6 +30,21 @@ const PIXEL_ID = (process.env.NEXT_PUBLIC_META_PIXEL_ID || process.env.META_PIXE
 const ACCESS_TOKEN = (process.env.META_CAPI_ACCESS_TOKEN || "").trim();
 /** Set ONLY while debugging in Events Manager -> Test Events. Leave unset in prod. */
 const TEST_EVENT_CODE = process.env.META_CAPI_TEST_EVENT_CODE?.trim();
+
+/**
+ * ON by default: nothing reaches Meta for a visitor with no evidence of an ad
+ * click — no fbclid and no fbc. Organic and direct traffic stays out of the
+ * pixel entirely, so every conversion in Ads Manager traces to a real click.
+ *
+ * The browser pixel applies the same rule in register-form.tsx, so a suppressed
+ * lead is suppressed on both sides.
+ *
+ * Set META_ONLY_PAID_TRAFFIC=false to report every conversion instead; each one
+ * is tagged `traffic_type: "paid" | "organic"` in custom_data either way, so a
+ * custom conversion can still separate them.
+ */
+const ONLY_PAID_TRAFFIC =
+  (process.env.META_ONLY_PAID_TRAFFIC ?? "true").trim().toLowerCase() !== "false";
 
 /**
  * The complete allow-list of events this codebase may send.
@@ -211,6 +226,11 @@ function buildUserData(args: SendMetaEventArgs): Record<string, unknown> {
   return userData;
 }
 
+/** Did this person reach us through a Meta ad click? */
+function isPaid(args: SendMetaEventArgs): boolean {
+  return hasPaidClick({ ...(args.attribution ?? {}), fbc: args.fbc || args.attribution?.fbc });
+}
+
 function buildCustomData(args: SendMetaEventArgs): Record<string, unknown> {
   const attr = args.attribution ?? {};
   const custom: Record<string, unknown> = { ...(args.customData ?? {}) };
@@ -228,6 +248,10 @@ function buildCustomData(args: SendMetaEventArgs): Record<string, unknown> {
     const value = attr[key];
     if (value) custom[key] = value;
   }
+
+  // Segmentation lever: filter a custom conversion on traffic_type = "paid" to
+  // see ad-driven conversions alone, without withholding the organic ones.
+  custom.traffic_type = isPaid(args) ? "paid" : "organic";
 
   // Meta requires the pair: a value without a currency is silently dropped.
   if (typeof args.value === "number" && Number.isFinite(args.value) && args.value >= 0) {
@@ -267,6 +291,12 @@ export async function sendMetaEvent(args: SendMetaEventArgs): Promise<MetaResult
   if (!ALLOWED_EVENTS.includes(args.eventName)) {
     console.warn(`[meta-capi] refused to send unknown event "${args.eventName}"`);
     return { ok: false, skipped: true, error: "event_not_allowed" };
+  }
+
+  // Opt-in organic gate. Off by default; see ONLY_PAID_TRAFFIC above.
+  if (ONLY_PAID_TRAFFIC && !isPaid(args)) {
+    console.info(`[meta-capi] ${args.eventName} not sent — no fbclid/fbc (organic traffic)`);
+    return { ok: false, skipped: true, error: "no_paid_click" };
   }
 
   if (!PIXEL_ID || !ACCESS_TOKEN) {
@@ -350,12 +380,22 @@ export function sendPageView(args: Omit<SendMetaEventArgs, "eventName">): Promis
   return sendMetaEvent({ ...args, eventName: "PageView" });
 }
 
-/** Offline conversion: the lead booked (or showed up for) a call. */
+/**
+ * Offline conversion: the lead booked (or showed up for) a call.
+ *
+ * action_source is "website" rather than "system_generated" on purpose. The
+ * conversion originates from a lead who came through the site, and Meta's
+ * tooling handles "website" far better — Test Events silently omits
+ * system_generated events, which makes every future debugging session harder
+ * than it needs to be. Attribution quality is unaffected either way; the fbc
+ * does the matching. Override per call with `actionSource` when the booking
+ * genuinely happened elsewhere (e.g. "phone_call").
+ */
 export function sendSchedule(args: Omit<SendMetaEventArgs, "eventName">): Promise<MetaResult> {
-  return sendMetaEvent({ actionSource: "system_generated", ...args, eventName: "Schedule" });
+  return sendMetaEvent({ actionSource: "website", ...args, eventName: "Schedule" });
 }
 
-/** Offline conversion: the deal closed. */
+/** Offline conversion: the deal closed. See sendSchedule on action_source. */
 export function sendPurchase(args: Omit<SendMetaEventArgs, "eventName">): Promise<MetaResult> {
-  return sendMetaEvent({ actionSource: "system_generated", ...args, eventName: "Purchase" });
+  return sendMetaEvent({ actionSource: "website", ...args, eventName: "Purchase" });
 }

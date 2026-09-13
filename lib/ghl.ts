@@ -20,6 +20,7 @@ const GHL_API_VERSION = "2021-07-28";
 const API_KEY = (process.env.GHL_API_KEY || "").trim();
 const LOCATION_ID = (process.env.GHL_LOCATION_ID || "").trim();
 const SOURCE_LABEL = process.env.GHL_SOURCE_LABEL?.trim() || "Website Form";
+const PIPELINE_TAG = process.env.GHL_WEBINAR_TAG?.trim();
 
 export interface GhlContactInput {
   fullName: string;
@@ -192,6 +193,7 @@ export async function upsertGhlContact(input: GhlContactInput): Promise<GhlResul
     new Set(
       [
         ...existing.tags,
+        PIPELINE_TAG,
         input.clientCategory,
         ...(input.extraTags ?? []),
         input.attribution.utm_source ? `src:${input.attribution.utm_source}` : undefined,

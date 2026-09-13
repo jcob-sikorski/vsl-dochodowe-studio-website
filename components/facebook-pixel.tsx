@@ -6,9 +6,6 @@
  * Loads the Meta pixel and fires a deduplicated PageView (browser + CAPI) on
  * every route change.
  *
- * The ONLY other event this app ever sends is "SubmitApplication", and that is
- * fired from <RegisterForm /> after /api/register confirms the submission.
- *
  * Mount once in app/layout.tsx:
  *     <FacebookPixel />
  * -------------------------------------------------------------------------- */
@@ -21,6 +18,10 @@ import { trackPageView } from "@/app/actions";
 import { resolveAttribution } from "@/lib/attribution";
 
 export const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "965293539900334";
+
+/** How long to wait for fbq before deciding the pixel is blocked. */
+const PIXEL_WAIT_MS = 5_000;
+const PIXEL_POLL_MS = 100;
 
 declare global {
   interface Window {
@@ -41,17 +42,59 @@ export function makeEventId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
 }
 
+type PixelState = "pending" | "ready" | "blocked";
+
 function FacebookPixelInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [pixelState, setPixelState] = useState<PixelState>("pending");
 
   // React 18 StrictMode mounts effects twice in dev; this makes sure a single
   // navigation never produces two PageViews.
   const lastTrackedKey = useRef<string | null>(null);
 
+  /* ---------------------------------------------------------------------- *
+   * Wait for fbq.
+   *
+   * Do NOT use <Script onLoad> here: Next never fires onLoad for an inline
+   * script. Inline scripts execute synchronously and never dispatch a `load`
+   * event, so an onLoad-driven flag stays false forever and the effect below
+   * never runs — no PageView, browser or server. onReady does fire, and this
+   * poll is the fallback that also detects a blocked pixel.
+   * ---------------------------------------------------------------------- */
   useEffect(() => {
-    if (!isLoaded || typeof window === "undefined" || !window.fbq) return;
+    if (pixelState !== "pending" || typeof window === "undefined") return;
+
+    if (window.fbq) {
+      setPixelState("ready");
+      return;
+    }
+
+    let elapsed = 0;
+    const timer = setInterval(() => {
+      if (window.fbq) {
+        clearInterval(timer);
+        setPixelState("ready");
+        return;
+      }
+      elapsed += PIXEL_POLL_MS;
+      if (elapsed >= PIXEL_WAIT_MS) {
+        clearInterval(timer);
+        // Ad blocker, tracking protection, or a failed CDN fetch. The server
+        // event still goes out — that is the whole point of having CAPI.
+        console.warn("[pixel] fbq unavailable; sending PageView server-side only");
+        setPixelState("blocked");
+      }
+    }, PIXEL_POLL_MS);
+
+    return () => clearInterval(timer);
+  }, [pixelState]);
+
+  /* ---------------------------------------------------------------------- *
+   * One PageView per navigation: browser + CAPI, sharing an event ID.
+   * ---------------------------------------------------------------------- */
+  useEffect(() => {
+    if (pixelState === "pending" || typeof window === "undefined") return;
 
     const key = `${pathname}?${searchParams?.toString() ?? ""}`;
     if (lastTrackedKey.current === key) return;
@@ -59,14 +102,17 @@ function FacebookPixelInner() {
 
     const eventId = makeEventId("pv");
 
-    // 1. Browser event, carrying the dedup ID.
-    try {
-      window.fbq("track", "PageView", {}, { eventID: eventId });
-    } catch (error) {
-      console.error("[pixel] browser PageView failed:", error);
+    // 1. Browser event, carrying the dedup ID. Skipped when fbq is blocked.
+    if (pixelState === "ready" && window.fbq) {
+      try {
+        window.fbq("track", "PageView", {}, { eventID: eventId });
+      } catch (error) {
+        console.error("[pixel] browser PageView failed:", error);
+      }
     }
 
     // 2. Server event with the SAME ID — Meta keeps whichever arrives first.
+    //    Fires even when the browser pixel is blocked.
     let attribution;
     try {
       attribution = resolveAttribution();
@@ -79,7 +125,7 @@ function FacebookPixelInner() {
       sourceUrl: window.location.href,
       attribution,
     }).catch((error) => console.error("[pixel] CAPI PageView failed:", error));
-  }, [pathname, searchParams, isLoaded]);
+  }, [pathname, searchParams, pixelState]);
 
   if (!META_PIXEL_ID) return null;
 
@@ -87,8 +133,8 @@ function FacebookPixelInner() {
     <Script
       id="meta-pixel"
       strategy="afterInteractive"
-      onLoad={() => setIsLoaded(true)}
-      onError={(error) => console.error("[pixel] script failed to load:", error)}
+      // onReady fires for inline scripts; onLoad does not.
+      onReady={() => setPixelState("ready")}
       dangerouslySetInnerHTML={{
         __html: `
 !function(f,b,e,v,n,t,s)

@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { META_PIXEL_ID, makeEventId } from "@/components/facebook-pixel";
-import { resolveAttribution } from "@/lib/attribution";
+import { hasPaidClick, resolveAttribution } from "@/lib/attribution";
 import { normalizePhone } from "@/lib/phone";
 import { isValidEmail, splitName } from "@/lib/validation";
 
@@ -121,8 +121,13 @@ export function RegisterForm({
     phoneDigits: string;
     firstName: string;
     lastName: string;
+    attribution: ReturnType<typeof resolveAttribution>;
   }): void {
     if (typeof window === "undefined" || !window.fbq || !META_PIXEL_ID) return;
+
+    // Organic visitor: no fbclid, no fbc. Nothing about this lead goes to Meta,
+    // browser side or server side. The server applies the identical rule.
+    if (!hasPaidClick(args.attribution)) return;
 
     try {
       // Re-init with Advanced Matching so the browser event carries the same
@@ -219,6 +224,7 @@ export function RegisterForm({
         phoneDigits: normalizedPhone?.digits ?? "",
         firstName,
         lastName,
+        attribution,
       });
 
       clarityEvent("registration_succeeded");

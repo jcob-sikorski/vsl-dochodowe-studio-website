@@ -133,6 +133,27 @@ export function buildFbcFromClickId(fbclid: string, capturedAtIso?: string): str
   return `fb.1.${timestamp}.${fbclid}`;
 }
 
+/**
+ * Was this visitor sent by a Meta ad?
+ *
+ * Isomorphic, so the same rule gates the browser pixel and the server events.
+ *
+ * Counts as paid:
+ *   - `fbclid` in the URL (a click that happened on this visit)
+ *   - a well-formed `fbc` (the _fbc cookie Meta wrote on an earlier ad click,
+ *     or one we built from a previous fbclid — good for its 90-day lifetime)
+ *
+ * Does NOT count: `fbp`. The pixel writes that for every visitor, organic
+ * included, so treating it as a paid signal would let everything through.
+ */
+export function hasPaidClick(attribution: Attribution | null | undefined): boolean {
+  if (!attribution) return false;
+  if (attribution.fbclid) return true;
+
+  const fbc = attribution.fbc;
+  return Boolean(fbc && /^fb\.\d+\.\d+\..+/.test(fbc));
+}
+
 /* -------------------------------------------------------------------------- *
  * Browser-only helpers
  * -------------------------------------------------------------------------- */

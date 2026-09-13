@@ -139,7 +139,10 @@ export async function POST(request: Request) {
       ? metaOutcome.value
       : { ok: false, error: String(metaOutcome.reason) };
 
-  if (!meta.ok) {
+  const metaStatus = meta.ok ? "sent" : meta.skipped ? `skipped:${meta.error}` : "failed";
+
+  // "no_paid_click" is the organic gate doing its job, not a problem.
+  if (!meta.ok && !meta.skipped) {
     console.error(`[register] CAPI SubmitApplication not delivered: ${meta.error ?? "unknown"}`);
   }
 
@@ -152,7 +155,9 @@ export async function POST(request: Request) {
   }
 
   console.info(
-    `[register] ok contact=${ghl.contactId ?? "?"} capi=${meta.ok ? "sent" : "failed"} ` +
+    `[register] ok contact=${ghl.contactId ?? "?"} capi=${metaStatus} ` +
+      `received=${meta.eventsReceived ?? "?"} trace=${meta.fbTraceId ?? "-"} ` +
+      `test=${process.env.META_CAPI_TEST_EVENT_CODE?.trim() || "LIVE"} ` +
       `src=${attribution.utm_source ?? "direct"} ${Date.now() - startedAt}ms`
   );
 
