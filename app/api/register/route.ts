@@ -1,263 +1,202 @@
+/* -------------------------------------------------------------------------- *
+ * src/app/api/register/route.ts
+ *
+ * The single entry point for a form submission.
+ *
+ *   1. validate + normalise everything (never trust the client)
+ *   2. rate-limit / honeypot
+ *   3. upsert the contact in GoHighLevel with FULL attribution
+ *   4. send exactly one "SubmitApplication" event to the Meta Conversions API
+ *
+ * No WebinarJam. No SMS. No email provider. Nothing else touches this path.
+ * -------------------------------------------------------------------------- */
+
+import { randomUUID } from "crypto";
+
 import { NextResponse } from "next/server";
 
+import { upsertGhlContact } from "@/lib/ghl";
+import { sendSubmitApplication } from "@/lib/meta-capi";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { parseRegistrationInput } from "@/lib/validation";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/** Reject absurd bodies before parsing them. */
+const MAX_BODY_BYTES = 16 * 1024;
+
 export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const {
-      fullName,
-      email,
-      phone,
-      capitalSelected,
-      clientCategory,
-      attribution,
-    } = body;
+  const startedAt = Date.now();
+  const clientIp = getClientIp(request.headers);
+  const userAgent = request.headers.get("user-agent") ?? "";
 
-    // Obsługa pojedynczego pola "Pełne imię" z fallbackiem na firstName/lastName
-    let firstName = body.firstName?.trim();
-    let lastName = body.lastName?.trim() ?? "";
+  /* ---------- 1. body size guard ------------------------------------- */
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+    return json({ success: false, message: "Payload too large." }, 413);
+  }
 
-    if (!firstName && fullName) {
-      const nameParts = fullName.trim().split(/\s+/);
-      firstName = nameParts[0] || "";
-      lastName = nameParts.slice(1).join(" ") || "";
-    }
-
-    const resolvedFullName = (fullName?.trim() || `${firstName} ${lastName}`).trim();
-
-    function sanitizeAttrField(val: unknown, maxLen = 255): string | undefined {
-      if (typeof val !== "string") return undefined;
-      const trimmed = val.trim().slice(0, maxLen);
-      return trimmed.length > 0 ? trimmed : undefined;
-    }
-
-    const safeAttribution = {
-      utm_source: sanitizeAttrField(attribution?.utm_source),
-      utm_medium: sanitizeAttrField(attribution?.utm_medium),
-      utm_campaign: sanitizeAttrField(attribution?.utm_campaign),
-      utm_content: sanitizeAttrField(attribution?.utm_content),
-      utm_term: sanitizeAttrField(attribution?.utm_term),
-      fbclid: sanitizeAttrField(attribution?.fbclid, 512),
-    };
-
-    // Sanityzacja telefonu dla poszczególnych API:
-    let rawDigits = (phone ?? "").replace(/\D/g, "");
-    if (rawDigits.startsWith("0048")) rawDigits = rawDigits.slice(4);
-    if (rawDigits.length === 11 && rawDigits.startsWith("48")) rawDigits = rawDigits.slice(2);
-
-    const nationalPhone = rawDigits; // Dokładnie 9 cyfr np. 500123456
-    const e164WithPlus = `+48${nationalPhone}`; // +48500123456 (dla GHL)
-    const e164Plain = `48${nationalPhone}`; // 48500123456 (dla SMSAPI)
-
-    // 1. Rejestracja w WebinarJam (wymaga 9 cyfr, bo kod kraju przekazujemy w osobnym polu)
-    const wjParams = new URLSearchParams({
-      api_key: process.env.WEBINARJAM_API_KEY!,
-      webinar_id: process.env.WEBINARJAM_WEBINAR_ID!,
-      schedule: process.env.WEBINARJAM_SCHEDULE_ID!,
-      first_name: firstName || resolvedFullName,
-      last_name: lastName,
-      email: email,
-      phone_country_code: "+48",
-      phone: nationalPhone,
-    });
-
-    const wjResponse = await fetch("https://api.webinarjam.com/webinarjam/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: wjParams.toString(),
-    });
-
-    const wjData = await wjResponse.json();
-
-    if (wjData.status !== "success" || !wjData.user?.live_room_url) {
-      console.error("WebinarJam registration failed:", wjData);
-      throw new Error("WebinarJam registration failed.");
-    }
-
-    const uniqueJoinLink = wjData.user.live_room_url;
-
-    // Obliczanie czasu i segmentu trasy
-    const WORKSHOP_START = "2026-09-17T20:00:00+02:00";
-    const targetDateMs = new Date(WORKSHOP_START).getTime();
-    const currentMs = Date.now();
-    const hoursToStart = (targetDateMs - currentMs) / (1000 * 60 * 60);
-
-    let routeTag = "";
-    if (hoursToStart > 36) {
-      routeTag = "A";
-    } else if (hoursToStart >= 12 && hoursToStart <= 36) {
-      routeTag = "B";
-    } else if (hoursToStart >= 4 && hoursToStart < 12) {
-      routeTag = "C";
-    } else {
-      routeTag = "D";
-    }
-
-    // 2. FAN-OUT: Równoległa wysyłka do GHL, MailerLite i SMSAPI
-    const results = await Promise.allSettled([
-      // A. GoHighLevel
-      upsertGhlContact({
-        fullName: resolvedFullName,
-        firstName: firstName || resolvedFullName,
-        lastName,
-        email,
-        phone: e164WithPlus,
-        joinLink: uniqueJoinLink,
-        capitalSelected,
-        clientCategory,
-        routeTag,
-        attribution: safeAttribution,
-      }),
-
-      // B. MailerLite
-      fetch("https://connect.mailerlite.com/api/subscribers", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.MAILERLITE_API_KEY}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          fields: {
-            name: resolvedFullName,
-            last_name: lastName,
-            phone: e164WithPlus,
-            webinar_link: uniqueJoinLink,
-            route: routeTag,
-          },
-          groups: [process.env.MAILERLITE_GROUP_ID],
-        }),
-      }),
-
-      // C. SMSAPI (używa samego imienia do bezpośredniego powitania)
-      sendSmsApiNotification(e164Plain, firstName || resolvedFullName),
-    ]);
-
-    results.forEach((r, i) => {
-      if (r.status === "rejected") console.error(`Fan-out call ${i} failed:`, r.reason);
-    });
-
-    return NextResponse.json({ success: true, joinLink: uniqueJoinLink });
-  } catch (error) {
-    console.error("Orchestrator Error:", error);
-    return NextResponse.json(
-      { success: false, message: "Registration failed. Please try again." },
-      { status: 500 }
+  /* ---------- 2. rate limit ------------------------------------------ */
+  const limit = checkRateLimit(`register:${clientIp}`, { limit: 6, windowMs: 60_000 });
+  if (!limit.allowed) {
+    return json(
+      { success: false, message: "Zbyt wiele prób. Spróbuj ponownie za chwilę." },
+      429,
+      { "Retry-After": String(limit.retryAfterSeconds) }
     );
   }
-}
 
-async function upsertGhlContact({
-  fullName,
-  firstName,
-  lastName,
-  email,
-  phone,
-  joinLink,
-  capitalSelected,
-  clientCategory,
-  routeTag,
-  attribution,
-}: {
-  fullName?: string;
-  firstName: string;
-  lastName?: string;
-  email: string;
-  phone?: string;
-  joinLink: string;
-  capitalSelected?: string;
-  clientCategory?: string;
-  routeTag: string;
-  attribution: {
-    utm_source?: string;
-    utm_medium?: string;
-    utm_campaign?: string;
-    utm_content?: string;
-    utm_term?: string;
-    fbclid?: string;
-  };
-}) {
-  const headers = {
-    Authorization: `Bearer ${process.env.GHL_API_KEY}`,
-    Version: "2021-07-28",
-    "Content-Type": "application/json",
+  /* ---------- 3. parse + validate ------------------------------------ */
+  let raw: unknown;
+  try {
+    const text = await request.text();
+    if (text.length > MAX_BODY_BYTES) {
+      return json({ success: false, message: "Payload too large." }, 413);
+    }
+    raw = JSON.parse(text);
+  } catch {
+    return json({ success: false, message: "Nieprawidłowe dane formularza." }, 400);
+  }
+
+  const parsed = parseRegistrationInput(raw);
+  if (!parsed.ok) {
+    return json({ success: false, message: parsed.errors[0].message, errors: parsed.errors }, 422);
+  }
+
+  const input = parsed.value;
+
+  /* ---------- 4. honeypot: look successful, do nothing ---------------- */
+  if (input.isBot) {
+    console.warn(`[register] honeypot triggered from ${clientIp}`);
+    return json({ success: true, redirectTo: "/see-you" }, 200);
+  }
+
+  /* ---------- 5. attribution enrichment ------------------------------ */
+  // Cookies set by the Meta pixel are the highest-quality signal we have.
+  // The client forwards them too, but reading them here is the safety net.
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const attribution = {
+    ...input.attribution,
+    fbp: input.attribution.fbp || readCookie(cookieHeader, "_fbp"),
+    fbc: input.attribution.fbc || readCookie(cookieHeader, "_fbc"),
   };
 
-  let existingTags: string[] = [];
-  const searchRes = await fetch(
-    `https://services.leadconnectorhq.com/contacts/search?locationId=${process.env.GHL_LOCATION_ID}&query=${encodeURIComponent(email)}`,
-    { headers }
-  );
+  const sourceUrl =
+    input.sourceUrl ||
+    attribution.landing_url ||
+    request.headers.get("referer") ||
+    undefined;
 
-  const searchData = await searchRes.json();
-  const existing = searchData?.contacts?.find(
-    (c: any) => c.email?.toLowerCase() === email.toLowerCase()
-  );
+  // The client normally supplies this so its pixel event can be deduplicated
+  // against ours. If it didn't (or sent junk), we mint one and hand it back.
+  const eventId = input.eventId || `sa_${randomUUID().replace(/-/g, "")}`;
 
-  if (existing) existingTags = existing.tags ?? [];
-
-  const tags = Array.from(new Set([...existingTags, process.env.GHL_WEBINAR_TAG, clientCategory, routeTag].filter(Boolean)));
-
-  const customFields = [
-    { id: process.env.GHL_CAPITAL_FIELD_ID, field_value: capitalSelected },
-    { id: process.env.GHL_WJ_LINK_FIELD_ID, field_value: joinLink },
-    { id: process.env.GHL_UTM_SOURCE_FIELD_ID, field_value: attribution.utm_source },
-    { id: process.env.GHL_UTM_MEDIUM_FIELD_ID, field_value: attribution.utm_medium },
-    { id: process.env.GHL_UTM_CAMPAIGN_FIELD_ID, field_value: attribution.utm_campaign },
-    { id: process.env.GHL_UTM_CONTENT_FIELD_ID, field_value: attribution.utm_content },
-    { id: process.env.GHL_UTM_TERM_FIELD_ID, field_value: attribution.utm_term },
-    { id: process.env.GHL_FBCLID_FIELD_ID, field_value: attribution.fbclid },
-  ].filter((f) => f.id && f.field_value);
-
-  const upsertRes = await fetch("https://services.leadconnectorhq.com/contacts/upsert", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      locationId: process.env.GHL_LOCATION_ID,
-      name: fullName,
-      firstName,
-      lastName,
-      email,
-      phone,
-      tags,
-      customFields,
+  /* ---------- 6. GHL (source of truth) + Meta CAPI ------------------- */
+  const [ghlOutcome, metaOutcome] = await Promise.allSettled([
+    upsertGhlContact({
+      fullName: input.fullName,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+      phone: input.phone,
+      attribution,
+      clientCategory: input.clientCategory,
+      eventId,
+      clientIp,
+      userAgent,
+      sourceUrl,
     }),
-  });
+    sendSubmitApplication({
+      eventId,
+      sourceUrl,
+      clientIp,
+      clientUserAgent: userAgent,
+      fbp: attribution.fbp,
+      fbc: attribution.fbc,
+      attribution,
+      user: {
+        email: input.email,
+        phone: input.phone.digits,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        country: input.phone.countryCode === "48" ? "pl" : undefined,
+      },
+      customData: {
+        content_name: process.env.NEXT_PUBLIC_OFFER_NAME || "Konsultacja",
+        ...(input.clientCategory ? { content_category: input.clientCategory } : {}),
+      },
+    }),
+  ]);
 
-  const upsertData = await upsertRes.json();
-  if (!upsertRes.ok) {
-    console.error("GHL upsert failed:", upsertData);
-    throw new Error("GHL contact upsert failed.");
+  const ghl =
+    ghlOutcome.status === "fulfilled"
+      ? ghlOutcome.value
+      : { ok: false, error: String(ghlOutcome.reason) };
+
+  const meta =
+    metaOutcome.status === "fulfilled"
+      ? metaOutcome.value
+      : { ok: false, error: String(metaOutcome.reason) };
+
+  if (!meta.ok) {
+    console.error(`[register] CAPI SubmitApplication not delivered: ${meta.error ?? "unknown"}`);
   }
 
-  return upsertData.contact;
+  if (!ghl.ok) {
+    console.error(`[register] GHL upsert failed: ${ghl.error ?? "unknown"}`);
+    return json(
+      { success: false, message: "Nie udało się zapisać zgłoszenia. Spróbuj ponownie." },
+      502
+    );
+  }
+
+  console.info(
+    `[register] ok contact=${ghl.contactId ?? "?"} capi=${meta.ok ? "sent" : "failed"} ` +
+      `src=${attribution.utm_source ?? "direct"} ${Date.now() - startedAt}ms`
+  );
+
+  return json({
+    success: true,
+    contactId: ghl.contactId,
+    /** The browser fires its pixel event with this exact ID for deduplication. */
+    eventId,
+    capiDelivered: meta.ok,
+    redirectTo: "/see-you",
+  });
 }
 
-async function sendSmsApiNotification(phone: string, firstName: string) {
-  if (!phone) return;
+/* ---------- anything other than POST ---------------------------------- */
 
-  const message = `Cześć ${firstName}! Łap swój bilet. Zapisz: 17 Września, Czwartek 20:00. Pokażę Ci, jak zejść z sali i zbudować studio, które zarabia bez Ciebie. Do zobaczenia`;
+export async function GET() {
+  return json({ success: false, message: "Method not allowed." }, 405, { Allow: "POST" });
+}
 
-  const params = new URLSearchParams({
-    to: phone,
-    message: message,
-    format: "json",
-    encoding: "utf-8",
-  });
+/* -------------------------------------------------------------------------- */
 
-  const res = await fetch("https://api.smsapi.pl/sms.do", {
-    method: "POST",
+function json(body: unknown, status = 200, extraHeaders: Record<string, string> = {}) {
+  return NextResponse.json(body, {
+    status,
     headers: {
-      Authorization: `Bearer ${process.env.SMSAPI_TOKEN}`,
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      ...extraHeaders,
     },
-    body: params.toString(),
   });
+}
 
-  if (!res.ok) {
-    const errorData = await res.text();
-    throw new Error(`SMSAPI failed: ${errorData}`);
+function readCookie(cookieHeader: string, name: string): string | undefined {
+  if (!cookieHeader) return undefined;
+  for (const part of cookieHeader.split(";")) {
+    const index = part.indexOf("=");
+    if (index === -1) continue;
+    if (part.slice(0, index).trim() !== name) continue;
+    const value = part.slice(index + 1).trim();
+    if (!value) return undefined;
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
   }
-
-  return res.json();
+  return undefined;
 }

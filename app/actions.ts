@@ -1,120 +1,70 @@
 "use server";
 
-import crypto from "crypto";
-import { headers, cookies } from "next/headers";
-import { buildFbcFromClickId } from "@/lib/attribution";
+/* -------------------------------------------------------------------------- *
+ * src/app/actions.ts
+ *
+ * The ONLY server action exposed to the browser is `trackPageView`.
+ *
+ * It carries no PII and cannot be used to forge a conversion: the
+ * "SubmitApplication" event is fired exclusively inside /api/register, after
+ * the submission has actually been validated and written to GoHighLevel.
+ * -------------------------------------------------------------------------- */
 
-const ACCESS_TOKEN = process.env.META_CAPI_ACCESS_TOKEN!;
-const PIXEL_ID = "965293539900334";
+import { cookies, headers } from "next/headers";
 
-// const TEST_CODE = process.env.META_CAPI_TEST_EVENT_CODE;
+import { normalizeAttribution, type Attribution } from "@/lib/attribution";
+import { sendPageView } from "@/lib/meta-capi";
+import { getClientIp } from "@/lib/rate-limit";
+import { sanitizeUrl } from "@/lib/validation";
 
-function hashData(data?: string) {
-  if (!data) return "";
-  return crypto.createHash("sha256").update(data.toLowerCase().trim()).digest("hex");
+export interface TrackPageViewInput {
+  eventId: string;
+  sourceUrl?: string;
+  attribution?: Attribution;
 }
 
-export async function sendToMetaCAPI(formData: {
-  email?: string;
-  phone?: string;
-  firstName?: string;
-  lastName?: string;
-  clientCategory?: string;
-  sourceUrl: string;
-  eventId: string;
-  eventName?: string;
-  attribution?: {
-    utm_source?: string;
-    utm_medium?: string;
-    utm_campaign?: string;
-    utm_content?: string;
-    utm_term?: string;
-    fbclid?: string;
-    captured_at?: string;
-  };
-}) {
-  const headersList = headers();
-  const cookieStore = cookies();
-
-  // Oczyszczenie adresu IP - bierzemy wyłacznie pierwszy IP przed przecinkiem
-  const rawIp = headersList.get("x-forwarded-for") || headersList.get("x-real-ip") || "";
-  const clientIp = rawIp.split(",")[0].trim();
-  const clientUserAgent = headersList.get("user-agent") || "";
-
-  // Pobranie ciasteczka _fbp dla maksymalnego Event Quality Score
-  const fbp = cookieStore.get("_fbp")?.value;
-
-  const attr = formData.attribution || {};
-  const fbc = attr.fbclid
-    ? buildFbcFromClickId(attr.fbclid, attr.captured_at)
-    : cookieStore.get("_fbc")?.value;
-
-  // Base parameters for every event (including cold PageViews)
-  const userData: Record<string, any> = {
-    client_ip_address: clientIp,
-    client_user_agent: clientUserAgent,
-    ...(fbp ? { fbp } : {}),
-    ...(fbc ? { fbc } : {}),
-  };
-
-  // Conditionally append hashed PII if the user is submitting a Lead form
-  if (formData.email) {
-    userData.em = [hashData(formData.email)];
-    userData.external_id = [hashData(formData.email)];
-    userData.country = [hashData("pl")];
-  }
-
-  if (formData.phone) {
-    let cleanPhone = formData.phone.replace(/\D/g, "");
-    if (cleanPhone.length === 9) {
-      cleanPhone = `48${cleanPhone}`;
-    }
-    userData.ph = [hashData(cleanPhone)];
-  }
-
-  if (formData.firstName) userData.fn = [hashData(formData.firstName)];
-  if (formData.lastName) userData.ln = [hashData(formData.lastName)];
-
-  const customData: Record<string, any> = {
-    ...(formData.eventName === "Lead" ? { content_name: "Warsztat: Zloty Model Biznesowy" } : {}),
-    ...(formData.clientCategory ? { content_category: formData.clientCategory } : {}),
-    ...(attr.utm_source ? { utm_source: attr.utm_source } : {}),
-    ...(attr.utm_medium ? { utm_medium: attr.utm_medium } : {}),
-    ...(attr.utm_campaign ? { utm_campaign: attr.utm_campaign } : {}),
-    ...(attr.utm_content ? { utm_content: attr.utm_content } : {}),
-    ...(attr.utm_term ? { utm_term: attr.utm_term } : {}),
-  };
-
-  const payload = {
-    data: [
-      {
-        event_name: formData.eventName || "Lead",
-        event_time: Math.floor(Date.now() / 1000),
-        action_source: "website",
-        event_source_url: formData.sourceUrl,
-        event_id: formData.eventId,
-        user_data: userData,
-        ...(Object.keys(customData).length > 0 ? { custom_data: customData } : {}),
-      },
-    ],
-  };
-
-  // Zakomentowane dla środowiska produkcyjnego:
-  // if (TEST_CODE) payload.test_event_code = TEST_CODE;
-
+export async function trackPageView(input: TrackPageViewInput): Promise<{ ok: boolean }> {
   try {
-    const res = await fetch(
-      `https://graph.facebook.com/v19.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }
-    );
-    const data = await res.json();
-    return { success: true, data };
+    // `await` works whether headers()/cookies() are sync (Next 14) or async
+    // (Next 15+), so this file is version-proof.
+    const headerList = await headers();
+    const cookieStore = await cookies();
+
+    // Rebuild a plain Headers object from just the keys getClientIp inspects —
+    // avoids relying on ReadonlyHeaders implementing forEach().
+    const requestHeaders = new Headers();
+    for (const key of [
+      "cf-connecting-ip",
+      "true-client-ip",
+      "x-real-ip",
+      "x-forwarded-for",
+      "x-vercel-forwarded-for",
+    ]) {
+      const value = headerList.get(key);
+      if (value) requestHeaders.set(key, value);
+    }
+
+    const eventId = typeof input?.eventId === "string" ? input.eventId.slice(0, 64) : "";
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(eventId)) {
+      return { ok: false };
+    }
+
+    const attribution = normalizeAttribution(input?.attribution);
+
+    const result = await sendPageView({
+      eventId,
+      sourceUrl: sanitizeUrl(input?.sourceUrl ?? "") ?? undefined,
+      clientIp: getClientIp(requestHeaders),
+      clientUserAgent: headerList.get("user-agent") ?? undefined,
+      fbp: attribution.fbp || cookieStore.get("_fbp")?.value,
+      fbc: attribution.fbc || cookieStore.get("_fbc")?.value,
+      attribution,
+    });
+
+    return { ok: result.ok };
   } catch (error) {
-    console.error("CAPI Error:", error);
-    return { success: false, error };
+    // Analytics must never surface as an error to the visitor.
+    console.error("[actions] trackPageView failed:", error);
+    return { ok: false };
   }
 }
