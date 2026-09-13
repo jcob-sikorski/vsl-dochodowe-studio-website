@@ -1,10 +1,7 @@
 "use client";
 
-import Image from "next/image";
-import { CountdownTimer } from "@/components/countdown-timer";
 import { RegisterForm } from "@/components/register-form";
 
-const WORKSHOP_START = "2026-09-17T20:00:00+02:00";
 const MUX_PLAYER_SRC =
   "https://player.mux.com/t6BcSjNXtsAFs01M01w9ls7kia2WZNxf4A7TZrip5RPvs";
 
