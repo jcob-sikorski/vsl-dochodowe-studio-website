@@ -1,6 +1,12 @@
 "use client";
 
 import { RegisterForm } from "@/components/register-form";
+import {
+  HEADLINE_EXPERIMENT,
+  defaultVariant,
+  parseHeadline,
+  type AbVariant,
+} from "@/lib/ab";
 
 const MUX_PLAYER_SRC =
   "https://player.mux.com/t6BcSjNXtsAFs01M01w9ls7kia2WZNxf4A7TZrip5RPvs";
@@ -38,7 +44,20 @@ function StepBar({ step, title }: { step: number; title: string }) {
   );
 }
 
-export function VslHeroSection() {
+interface VslHeroSectionProps {
+  /**
+   * Which headline to show. Chosen in middleware, read from a cookie in
+   * app/page.tsx, rendered here — so the visitor never sees it change.
+   * Defaults to the control, which keeps this component usable anywhere.
+   */
+  variant?: AbVariant;
+}
+
+export function VslHeroSection({ variant }: VslHeroSectionProps) {
+  const active = variant ?? defaultVariant();
+  const segments = parseHeadline(active.headline);
+  const subheadline = active.subheadline ?? HEADLINE_EXPERIMENT.subheadline;
+
   return (
     <section className="relative w-full overflow-x-hidden bg-white pt-6 font-sans selection:bg-orange-200 sm:pt-8 lg:pt-10">
       <div className="mx-auto w-full max-w-[25rem] px-3 pb-5 min-[390px]:pb-6 sm:max-w-[34rem] sm:px-3.5 sm:pb-8 lg:max-w-3xl lg:px-8 lg:pb-12">
@@ -47,16 +66,24 @@ export function VslHeroSection() {
           {/* Main Headline */}
           <h1 className="mt-0 w-full text-[1.28rem] font-extrabold leading-[1.2] tracking-tight text-black min-[390px]:text-[1.42rem] sm:text-[1.85rem] sm:leading-[1.18] lg:text-[2.25rem]">
             <span className="block text-neutral-900">
-              Gwarantowane 20–50 tys. zł zysku z Twojego studia,{" "}
-              <span className="underline decoration-neutral-900 decoration-2 underline-offset-2">
-                pracując 5h w tygodniu
-              </span>
+              {segments.map((segment, index) =>
+                segment.underline ? (
+                  <span
+                    key={index}
+                    className="underline decoration-neutral-900 decoration-2 underline-offset-2"
+                  >
+                    {segment.text}
+                  </span>
+                ) : (
+                  <span key={index}>{segment.text}</span>
+                )
+              )}
             </span>
           </h1>
 
           {/* Subheadline */}
           <p className="mt-1.5 w-full text-[0.82rem] font-light leading-[1.32] tracking-normal text-neutral-800 min-[390px]:mt-2 min-[390px]:text-[0.9rem] sm:mt-2.5 sm:text-[1.05rem]">
-            Dołącz do programu mentoringowego dla właścicieli studiów treningu personalnego.
+            {subheadline}
           </p>
 
           {/* KROK 1 — obejrzyj wideo */}

@@ -7,6 +7,7 @@
  * Protected by HTTP Basic Auth in src/middleware.ts.
  * -------------------------------------------------------------------------- */
 
+import { HEADLINE_EXPERIMENT, getVariant } from "@/lib/ab";
 import { getSupabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,18 @@ interface ReportRow {
   booked: number | string;
   showed: number | string;
   no_shows: number | string;
+  won: number | string;
+  revenue: number | string;
+}
+
+interface AbRow {
+  experiment_id: string | null;
+  variant_id: string | null;
+  views: number | string;
+  leads: number | string;
+  qualified: number | string;
+  booked: number | string;
+  showed: number | string;
   won: number | string;
   revenue: number | string;
 }
@@ -74,6 +87,10 @@ const rate = (num: number, den: number): number | undefined =>
   den > 0 ? num / den : undefined;
 
 const pct = (v: number | undefined): string => (v === undefined ? "—" : `${(v * 100).toFixed(0)}%`);
+
+/** Opt-in rates live in the low single digits — one decimal place matters. */
+const pct2 = (v: number | undefined): string =>
+  v === undefined ? "—" : `${(v * 100).toFixed(1)}%`;
 
 const cost = (spend: number, count: number): string =>
   spend > 0 && count > 0 ? pln.format(spend / count) : "—";
@@ -125,6 +142,17 @@ export default async function DashboardPage({
   }
 
   const rows = (data ?? []) as ReportRow[];
+
+  // Separate query, deliberately not blocking the page: if the split-test
+  // tables aren't installed yet the funnel report above must still render.
+  const ab = await supabase.rpc("ab_report", {
+    p_from: from,
+    p_to: to,
+    p_traffic: traffic,
+    p_experiment: HEADLINE_EXPERIMENT.id,
+  });
+
+  const abRows = (ab.error ? [] : ((ab.data ?? []) as AbRow[])).filter((r) => r.variant_id);
 
   const totals: Totals = rows.reduce<Totals>(
     (acc, r) => ({
@@ -180,6 +208,10 @@ export default async function DashboardPage({
       {/* ---- funnel -------------------------------------------------- */}
       <h2 className="h2">Funnel</h2>
       <Funnel steps={funnel} />
+
+      {/* ---- headline split test ------------------------------------- */}
+      <h2 className="h2">Headline test · {HEADLINE_EXPERIMENT.id}</h2>
+      <AbTest rows={abRows} error={ab.error?.message} traffic={traffic} />
 
       {/* ---- per-ad table -------------------------------------------- */}
       <h2 className="h2">By ad</h2>
@@ -281,6 +313,151 @@ export default async function DashboardPage({
 /* -------------------------------------------------------------------------- *
  * Pieces
  * -------------------------------------------------------------------------- */
+
+/**
+ * The split test.
+ *
+ * Opt-in rate is leads ÷ unique visitors who were shown that headline — not
+ * pageviews, and not sessions. Lift and the p-value are always relative to the
+ * control (the first variant in lib/ab.ts), because "B beat C" is not a
+ * decision you can act on.
+ */
+function AbTest({
+  rows,
+  error,
+  traffic,
+}: {
+  rows: AbRow[];
+  error?: string;
+  traffic: string;
+}) {
+  if (error) {
+    return (
+      <Notice
+        title="Split-test tables aren't installed"
+        body={`${error} — run supabase/schema.sql in the SQL editor to create ab_views and ab_report().`}
+      />
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <Notice
+        title="No split-test data in this range"
+        body={
+          traffic === "paid"
+            ? "No paid visitors have been bucketed yet. Switch to All to include organic traffic, or wait for the next ad click."
+            : "Nobody has been bucketed yet. Check that middleware is running on / and that /api/ab/view is reachable."
+        }
+      />
+    );
+  }
+
+  // Config order is the truth: the first variant is the control, and rows the
+  // config no longer knows about (an old variant still in the data) sort last.
+  const order = new Map(HEADLINE_EXPERIMENT.variants.map((v, i) => [v.id, i]));
+  const sorted = [...rows].sort(
+    (a, b) => (order.get(a.variant_id ?? "") ?? 99) - (order.get(b.variant_id ?? "") ?? 99)
+  );
+
+  const control = sorted[0];
+  const controlViews = n(control.views);
+  const controlLeads = n(control.leads);
+  const controlRate = rate(controlLeads, controlViews);
+
+  const totalViews = sorted.reduce((sum, r) => sum + n(r.views), 0);
+  const totalLeads = sorted.reduce((sum, r) => sum + n(r.leads), 0);
+
+  return (
+    <>
+      <section className="tiles" aria-label="Split test headline metrics">
+        <Tile label="Visitors bucketed" value={int.format(totalViews)} note="unique browsers" />
+        <Tile label="Opt-ins" value={int.format(totalLeads)} />
+        <Tile
+          label="Opt-in rate"
+          value={pct2(rate(totalLeads, totalViews))}
+          note="all variants combined"
+        />
+        <Tile label="Variants live" value={int.format(sorted.length)} />
+      </section>
+
+      <div className="tablewrap" style={{ marginTop: 12 }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th scope="col" className="left">Variant</th>
+              <th scope="col">Visitors</th>
+              <th scope="col">Opt&#8209;ins</th>
+              <th scope="col">Opt&#8209;in&nbsp;rate</th>
+              <th scope="col">Lift</th>
+              <th scope="col">Confidence</th>
+              <th scope="col">Booked</th>
+              <th scope="col">Won</th>
+              <th scope="col">Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((r, i) => {
+              const views = n(r.views);
+              const leads = n(r.leads);
+              const optIn = rate(leads, views);
+              const isControl = i === 0;
+
+              const lift =
+                isControl || optIn === undefined || controlRate === undefined || controlRate === 0
+                  ? undefined
+                  : (optIn - controlRate) / controlRate;
+
+              const p = isControl
+                ? undefined
+                : twoProportionP(controlLeads, controlViews, leads, views);
+
+              const variant = getVariant(r.variant_id);
+              const label = order.has(r.variant_id ?? "")
+                ? variant.label
+                : `${r.variant_id} (retired)`;
+
+              return (
+                <tr key={r.variant_id ?? i}>
+                  <th scope="row" className="left">
+                    <span className="adname">{label}</span>
+                    <span className="sub">{isControl ? "control" : `vs. control`}</span>
+                  </th>
+                  <td>{int.format(views)}</td>
+                  <td>{int.format(leads)}</td>
+                  <td>{pct2(optIn)}</td>
+                  <td>
+                    {lift === undefined ? (
+                      "—"
+                    ) : (
+                      <span className={`roas ${lift > 0 ? "good" : lift < 0 ? "critical" : ""}`}>
+                        {lift > 0 ? "+" : ""}
+                        {(lift * 100).toFixed(1)}%
+                      </span>
+                    )}
+                  </td>
+                  <td>{confidenceLabel(p, views, leads, controlViews)}</td>
+                  <td>{int.format(n(r.booked))}</td>
+                  <td>{int.format(n(r.won))}</td>
+                  <td>{pln.format(n(r.revenue))}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="foot">
+        Confidence is a two&#8209;tailed test of this variant&rsquo;s opt&#8209;in rate against the
+        control&rsquo;s. Below ~100 opt&#8209;ins per variant almost nothing reaches 95%, and
+        stopping the moment a number goes green is how a coin flip gets promoted to
+        a strategy &mdash; let it run. Visitors are counted by first visit and opt&#8209;ins by
+        opt&#8209;in date, so someone who arrives on the last day of a range and converts
+        the next morning lands in the denominator here and the numerator later.
+      </p>
+    </>
+  );
+}
 
 function Tile({
   label,
@@ -406,6 +583,78 @@ function isoDate(d: Date): string {
 }
 
 /* -------------------------------------------------------------------------- *
+ * Significance
+ *
+ * A two-proportion z-test: given two conversion rates and their sample sizes,
+ * how likely is a gap at least this big if the headlines were actually equally
+ * good? That probability is the p-value; 1 - p is what the table calls
+ * confidence.
+ *
+ * This is the standard fixed-horizon test, which assumes you decide in advance
+ * how long to run and then look once. Peeking daily and stopping at the first
+ * green number inflates false positives badly — hence the note under the table.
+ * -------------------------------------------------------------------------- */
+
+function twoProportionP(
+  controlLeads: number,
+  controlViews: number,
+  variantLeads: number,
+  variantViews: number
+): number | undefined {
+  if (controlViews < 1 || variantViews < 1) return undefined;
+
+  const p1 = controlLeads / controlViews;
+  const p2 = variantLeads / variantViews;
+
+  const pooled = (controlLeads + variantLeads) / (controlViews + variantViews);
+  if (pooled <= 0 || pooled >= 1) return undefined;
+
+  const se = Math.sqrt(pooled * (1 - pooled) * (1 / controlViews + 1 / variantViews));
+  if (!Number.isFinite(se) || se === 0) return undefined;
+
+  const z = Math.abs(p2 - p1) / se;
+  return 2 * (1 - normalCdf(z));
+}
+
+/** Φ(z) via Abramowitz & Stegun 7.1.26 — accurate to ~1e-7, plenty here. */
+function normalCdf(z: number): number {
+  const sign = z < 0 ? -1 : 1;
+  const x = Math.abs(z) / Math.SQRT2;
+
+  const t = 1 / (1 + 0.3275911 * x);
+  const y =
+    1 -
+    ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) *
+      t *
+      Math.exp(-x * x);
+
+  return 0.5 * (1 + sign * y);
+}
+
+/**
+ * Turns a p-value into something you can act on. "Too early" is a real answer
+ * and by far the most common one — saying it plainly beats showing 63% and
+ * letting it read as a result.
+ */
+function confidenceLabel(
+  p: number | undefined,
+  views: number,
+  leads: number,
+  controlViews: number
+): React.ReactNode {
+  if (p === undefined) return "—";
+  if (views < 200 || controlViews < 200 || leads < 5) {
+    return <span className="verdict muted">too early</span>;
+  }
+
+  const confidence = (1 - p) * 100;
+
+  if (p < 0.05) return <span className="verdict good">{confidence.toFixed(0)}% · call it</span>;
+  if (p < 0.2) return <span className="verdict warning">{confidence.toFixed(0)}% · leaning</span>;
+  return <span className="verdict muted">{confidence.toFixed(0)}% · keep running</span>;
+}
+
+/* -------------------------------------------------------------------------- *
  * Styles
  *
  * Scoped to .viz-root, written against roles so light/dark swap in one place.
@@ -527,6 +776,11 @@ const CSS = `
           text-overflow: ellipsis; }
 .table .sub { display: block; font-size: 11px; color: var(--text-muted); margin: 0; }
 .table tfoot th, .table tfoot td { font-weight: 700; border-bottom: 0; background: var(--surface-2); }
+.verdict { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.verdict.good { color: var(--good); }
+.verdict.warning { color: var(--warning); }
+.verdict.muted { color: var(--text-muted); font-weight: 500; }
+
 .roas.good { color: var(--good); }
 .roas.warning { color: var(--warning); }
 .roas.critical { color: var(--critical); }

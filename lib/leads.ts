@@ -36,6 +36,11 @@ export interface LeadOptInInput {
   fullName?: string;
   attribution: Attribution;
   metaEventId?: string;
+  /** Which split test this lead was in, and which variant they were shown. */
+  abExperimentId?: string;
+  abVariantId?: string;
+  /** Ties the lead back to its row in ab_views — the opt-in rate's numerator. */
+  abVisitorId?: string;
 }
 
 export interface LeadStageInput {
@@ -87,6 +92,10 @@ export async function recordLeadOptIn(input: LeadOptInInput): Promise<LeadResult
 
         traffic_type: hasPaidClick(a) ? "paid" : "organic",
         meta_event_id: input.metaEventId ?? null,
+
+        ab_experiment_id: input.abExperimentId ?? null,
+        ab_variant_id: input.abVariantId ?? null,
+        ab_visitor_id: input.abVisitorId ?? null,
       },
     });
 
@@ -129,6 +138,65 @@ export async function recordLeadStage(input: LeadStageInput): Promise<LeadResult
     return { ok: true, leadId: typeof data === "string" ? data : undefined };
   } catch (err) {
     console.error("[leads] stage write threw:", err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+/* -------------------------------------------------------------------------- *
+ * A/B views
+ * -------------------------------------------------------------------------- */
+
+export interface AbViewInput {
+  experimentId: string;
+  variantId: string;
+  visitorId: string;
+  attribution: Attribution;
+  trafficType: "paid" | "organic";
+  userAgent?: string;
+}
+
+/**
+ * Records that a browser SAW a variant. Called by /api/ab/view.
+ *
+ * Idempotent on (experiment_id, visitor_id): the first view wins and later
+ * ones only enrich it. That is what makes the denominator "unique visitors"
+ * rather than "pageviews", and it means a reload can never dilute a rate.
+ */
+export async function recordAbView(input: AbViewInput): Promise<LeadResult> {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, skipped: true, error: "supabase_not_configured" };
+
+  const a = input.attribution;
+
+  try {
+    const { error } = await supabase.rpc("record_ab_view", {
+      p_view: {
+        experiment_id: input.experimentId,
+        variant_id: input.variantId,
+        visitor_id: input.visitorId,
+
+        traffic_type: input.trafficType,
+        ad_id: a.ad_id ?? null,
+        adset_id: a.adset_id ?? null,
+        campaign_id: a.campaign_id ?? null,
+        utm_source: a.utm_source ?? null,
+        utm_medium: a.utm_medium ?? null,
+        utm_campaign: a.utm_campaign ?? null,
+        utm_content: a.utm_content ?? null,
+        landing_url: a.landing_url ?? null,
+        referrer: a.referrer ?? null,
+        user_agent: input.userAgent ?? null,
+      },
+    });
+
+    if (error) {
+      console.error(`[ab] view insert failed: ${error.message}`);
+      return { ok: false, error: error.message };
+    }
+
+    return { ok: true };
+  } catch (err) {
+    console.error("[ab] view insert threw:", err);
     return { ok: false, error: String(err) };
   }
 }

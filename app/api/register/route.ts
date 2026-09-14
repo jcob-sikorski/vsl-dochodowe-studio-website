@@ -15,6 +15,13 @@ import { randomUUID } from "crypto";
 
 import { NextResponse } from "next/server";
 
+import {
+  AB_VARIANT_COOKIE,
+  AB_VISITOR_COOKIE,
+  HEADLINE_EXPERIMENT,
+  isValidVisitorId,
+  parseVariantCookie,
+} from "@/lib/ab";
 import { upsertGhlContact } from "@/lib/ghl";
 import { recordLeadOptIn } from "@/lib/leads";
 import { sendSubmitApplication } from "@/lib/meta-capi";
@@ -77,6 +84,17 @@ export async function POST(request: Request) {
   // Cookies set by the Meta pixel are the highest-quality signal we have.
   // The client forwards them too, but reading them here is the safety net.
   const cookieHeader = request.headers.get("cookie") ?? "";
+
+  // Which headline this person was shown. Read from the cookie middleware set,
+  // never from the request body: the browser must not be able to choose which
+  // variant its conversion is credited to.
+  const abVariantId = parseVariantCookie(
+    readCookie(cookieHeader, AB_VARIANT_COOKIE),
+    HEADLINE_EXPERIMENT
+  );
+  const abVisitorIdRaw = readCookie(cookieHeader, AB_VISITOR_COOKIE);
+  const abVisitorId = isValidVisitorId(abVisitorIdRaw) ? abVisitorIdRaw : undefined;
+
   const attribution = {
     ...input.attribution,
     fbp: input.attribution.fbp || readCookie(cookieHeader, "_fbp"),
@@ -165,6 +183,9 @@ export async function POST(request: Request) {
     fullName: input.fullName,
     attribution,
     metaEventId: eventId,
+    abExperimentId: abVariantId ? HEADLINE_EXPERIMENT.id : undefined,
+    abVariantId: abVariantId ?? undefined,
+    abVisitorId,
   });
 
   if (!ledger.ok && !ledger.skipped) {
@@ -176,6 +197,7 @@ export async function POST(request: Request) {
       `lead=${ledger.ok ? "logged" : ledger.skipped ? "off" : "failed"} ` +
       `received=${meta.eventsReceived ?? "?"} trace=${meta.fbTraceId ?? "-"} ` +
       `test=${process.env.META_CAPI_TEST_EVENT_CODE?.trim() || "LIVE"} ` +
+      `ab=${abVariantId ?? "-"} ` +
       `src=${attribution.utm_source ?? "direct"} ${Date.now() - startedAt}ms`
   );
 
