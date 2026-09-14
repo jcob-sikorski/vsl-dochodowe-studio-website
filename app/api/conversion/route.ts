@@ -1,19 +1,23 @@
 /* -------------------------------------------------------------------------- *
  * src/app/api/conversion/route.ts
  *
- * Offline conversions. A GoHighLevel workflow webhooks in here when a lead
- * books a call or the deal closes, and we fire the matching Meta event using
- * the fbc / fbp / fbclid that were stored on the contact at opt-in time.
+ * The funnel's write endpoint. A GoHighLevel workflow calls it every time a
+ * lead changes stage, and it does two separate jobs:
  *
- * This is the payoff for saving attribution in GHL: by the time a deal closes,
- * the browser cookies are long gone, so without those stored values Meta can
- * never connect the sale back to the ad that produced it.
+ *   1. ALWAYS stamps the stage on the lead row in Supabase. That ledger is what
+ *      makes show rate, cost per qualified lead and cost per purchase
+ *      computable — Meta knows spend but not your pipeline.
+ *
+ *   2. SOMETIMES reports a conversion to Meta. Only `booked` and `won` map to a
+ *      Meta event; `qualified`, `showed`, `no_show`, `lost` and `disqualified`
+ *      are recorded locally and stay out of the pixel. Sending Meta a signal for
+ *      every pipeline nudge would just add noise to optimisation.
  *
  * Auth: shared secret, required. See CONVERSION_WEBHOOK_SECRET in .env.example.
  *
- * Retries are safe: the event_id is derived deterministically from
- * (event, contact, reference), so GHL replaying a webhook can never
- * double-count a conversion.
+ * Retries are safe. The Meta event_id is derived deterministically from
+ * (event, contact, reference), and the Supabase stage write uses coalesce() so
+ * the FIRST time a lead reaches a stage is the time that sticks.
  * -------------------------------------------------------------------------- */
 
 import crypto from "crypto";
@@ -22,6 +26,7 @@ import { NextResponse } from "next/server";
 
 import { normalizeAttribution, type Attribution } from "@/lib/attribution";
 import { getGhlContactSnapshot } from "@/lib/ghl";
+import { recordLeadStage, type LeadStage } from "@/lib/leads";
 import { sendMetaEvent, type MetaActionSource, type MetaEventName } from "@/lib/meta-capi";
 import { normalizePhone } from "@/lib/phone";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -33,25 +38,73 @@ export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 32 * 1024;
 const SECRET = (process.env.CONVERSION_WEBHOOK_SECRET || "").trim();
 
-/** Friendly aliases so the GHL workflow can send words your team recognises. */
-const EVENT_ALIASES: Record<string, MetaEventName> = {
-  schedule: "Schedule",
-  booked: "Schedule",
-  booking: "Schedule",
-  appointment: "Schedule",
-  showed: "Schedule",
-  show: "Schedule",
-  call_booked: "Schedule",
-  booked_call: "Schedule",
-  umowione: "Schedule",
+/**
+ * What your team types in the GHL workflow -> the canonical funnel stage.
+ * Polish and English spellings both accepted, because whoever builds the
+ * workflow shouldn't have to remember which.
+ */
+const STAGE_ALIASES: Record<string, LeadStage> = {
+  // qualified — the setter has vetted the lead but nothing is booked yet
+  qualified: "qualified",
+  qualify: "qualified",
+  kwalifikacja: "qualified",
+  zakwalifikowany: "qualified",
 
-  purchase: "Purchase",
+  // booked — a call is in the calendar
+  booked: "booked",
+  booking: "booked",
+  book: "booked",
+  schedule: "booked",
+  scheduled: "booked",
+  appointment: "booked",
+  call_booked: "booked",
+  booked_call: "booked",
+  umowione: "booked",
+
+  // showed — they turned up
+  showed: "showed",
+  show: "showed",
+  showed_up: "showed",
+  attended: "showed",
+  odbyte: "showed",
+
+  // no_show — they didn't
+  no_show: "no_show",
+  noshow: "no_show",
+  did_not_show: "no_show",
+  nieobecny: "no_show",
+
+  // won — money
+  won: "won",
+  purchase: "won",
+  closed_won: "won",
+  sale: "won",
+  sold: "won",
+  closed: "won",
+  sprzedaz: "won",
+
+  // lost / disqualified
+  lost: "lost",
+  closed_lost: "lost",
+  przegrane: "lost",
+  disqualified: "disqualified",
+  dq: "disqualified",
+  unqualified: "disqualified",
+  odrzucony: "disqualified",
+};
+
+/**
+ * Only these two stages are worth a Meta conversion. Everything else is
+ * pipeline bookkeeping and stays local.
+ *
+ * Note `showed` deliberately maps to nothing: it used to send `Schedule`, which
+ * collides with `booked` on the same opportunity — identical event name and
+ * reference produce an identical event_id, so Meta would discard it as a
+ * duplicate and the show would silently vanish. Show rate lives in Supabase.
+ */
+const META_EVENT_FOR_STAGE: Partial<Record<LeadStage, MetaEventName>> = {
+  booked: "Schedule",
   won: "Purchase",
-  closed: "Purchase",
-  closed_won: "Purchase",
-  sale: "Purchase",
-  sold: "Purchase",
-  sprzedaz: "Purchase",
 };
 
 const ACTION_SOURCES: MetaActionSource[] = [
@@ -115,27 +168,27 @@ export async function POST(request: Request) {
   // endpoint accepts a GHL webhook, a flat JSON body, or curl.
   const src = flatten(body);
 
-  /* ---------- 5. which event? ------------------------------------------ */
-  const rawEvent = str(src.event ?? src.eventName ?? src.type).toLowerCase().replace(/[\s-]+/g, "_");
-  const eventName = EVENT_ALIASES[rawEvent];
-  if (!eventName) {
+  /* ---------- 5. which stage? ------------------------------------------ */
+  const rawEvent = str(src.event ?? src.stage ?? src.eventName ?? src.type)
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  const stage = STAGE_ALIASES[rawEvent];
+  if (!stage) {
     console.warn(
-      `[conversion] unknown event ${JSON.stringify(rawEvent)}; top-level keys: ${Object.keys(body).join(", ")}`
+      `[conversion] unknown stage ${JSON.stringify(rawEvent)}; top-level keys: ${Object.keys(body).join(", ")}`
     );
     return json(
       {
         ok: false,
         error: "unknown_event",
         received: rawEvent || null,
-        hint: `Use one of: ${Object.keys(EVENT_ALIASES).join(", ")}`,
+        hint: `Use one of: ${Object.keys(STAGE_ALIASES).join(", ")}`,
       },
       400
     );
   }
 
   /* ---------- 6. identity + attribution -------------------------------- */
-  // GHL sends the contact fields under several possible spellings depending on
-  // whether you use a custom payload or the default one.
   const contactId = str(src.contactId ?? src.contact_id ?? src.id);
   let email = str(src.email ?? src.contact_email).toLowerCase();
   let phoneRaw = str(src.phone ?? src.contact_phone);
@@ -146,6 +199,9 @@ export async function POST(request: Request) {
     fbc: str(src.fbc),
     fbp: str(src.fbp),
     fbclid: str(src.fbclid),
+    ad_id: str(src.ad_id ?? src.adId),
+    adset_id: str(src.adset_id ?? src.adsetId),
+    campaign_id: str(src.campaign_id ?? src.campaignId),
     utm_source: str(src.utm_source ?? src.utmSource),
     utm_medium: str(src.utm_medium ?? src.utmMedium),
     utm_campaign: str(src.utm_campaign ?? src.utmCampaign),
@@ -158,11 +214,14 @@ export async function POST(request: Request) {
     captured_at: str(src.captured_at ?? src.capturedAt),
   });
 
-  // Fall back to the contact record whenever the webhook didn't carry the
-  // click identifiers — this is what keeps attribution alive if someone edits
-  // the workflow payload later.
-  const needsLookup = !attribution.fbc && !attribution.fbp && !attribution.fbclid;
-  if (contactId && (needsLookup || !email)) {
+  const metaEventName = resolveMetaEvent(stage, str(src.metaEvent ?? src.meta_event));
+
+  // Look the contact up when we'll need click identifiers we weren't given, or
+  // when we have no email to match the lead row on.
+  const needsClickIds =
+    Boolean(metaEventName) && !attribution.fbc && !attribution.fbp && !attribution.fbclid;
+
+  if (contactId && (needsClickIds || !email)) {
     const snapshot = await getGhlContactSnapshot(contactId);
     if (snapshot.ok) {
       attribution = normalizeAttribution({ ...snapshot.attribution, ...attribution });
@@ -173,103 +232,127 @@ export async function POST(request: Request) {
     }
   }
 
-  if (!email && !phoneRaw) {
+  if (!contactId && !email) {
     return json({ ok: false, error: "no_identifiers" }, 422);
   }
 
   const phone = normalizePhone(phoneRaw);
-
-  /* ---------- 7. money -------------------------------------------------- */
   const value = num(src.value ?? src.amount ?? src.opportunityValue ?? src.monetaryValue);
   const currency = str(src.currency).toUpperCase() || undefined;
+  const occurredAt = parseDate(str(src.occurredAt ?? src.occurred_at));
 
-  /* ---------- 8. deterministic event id --------------------------------- */
-  // Same conversion replayed by GHL -> same id -> Meta counts it once.
+  /* ---------- 7. record the stage (always) ------------------------------ */
+  const ledger = await recordLeadStage({
+    ghlContactId: contactId || undefined,
+    email: email || undefined,
+    stage,
+    at: occurredAt,
+    revenue: stage === "won" ? value : undefined,
+    currency,
+  });
+
+  /* ---------- 8. report to Meta (only booked / won) --------------------- */
   const referenceId = str(
     src.referenceId ?? src.appointmentId ?? src.opportunityId ?? src.opportunity_id ?? ""
   );
-  const providedEventId = str(src.eventId);
-  const eventId = /^[A-Za-z0-9_-]{8,64}$/.test(providedEventId)
-    ? providedEventId
-    : deterministicEventId(eventName, contactId || email, referenceId);
 
-  /* ---------- 9. send ---------------------------------------------------- */
-  const actionSourceRaw = str(src.actionSource ?? src.action_source) as MetaActionSource;
-  // "website" by default: the lead came through the site, and Meta's Test Events
-  // view does not display system_generated events at all. Send "actionSource"
-  // in the webhook payload to override (e.g. "phone_call" for a setter booking).
-  const actionSource = ACTION_SOURCES.includes(actionSourceRaw) ? actionSourceRaw : "website";
+  let metaResult: Awaited<ReturnType<typeof sendMetaEvent>> | null = null;
+  let eventId: string | null = null;
 
-  const result = await sendMetaEvent({
-    eventName,
-    eventId,
-    actionSource,
-    eventTime: num(src.eventTime ?? src.event_time) ?? parseIsoSeconds(str(src.occurredAt)),
-    sourceUrl: sanitizeUrl(str(src.sourceUrl)) ?? attribution.landing_url,
-    fbp: attribution.fbp,
-    fbc: attribution.fbc,
-    attribution,
-    user: {
-      email: email || undefined,
-      phone: phone?.digits,
-      firstName: firstName || undefined,
-      lastName: lastName || undefined,
-      country: phone?.countryCode === "48" ? "pl" : undefined,
-      externalId: email || contactId || undefined,
-    },
-    ...(value !== undefined ? { value, currency: currency || "PLN" } : {}),
-    customData: {
-      ...(str(src.contentName) ? { content_name: str(src.contentName) } : {}),
-      ...(contactId ? { ghl_contact_id: contactId } : {}),
-      ...(referenceId ? { ghl_reference_id: referenceId } : {}),
-    },
-  });
+  if (metaEventName) {
+    const providedEventId = str(src.eventId);
+    eventId = /^[A-Za-z0-9_-]{8,64}$/.test(providedEventId)
+      ? providedEventId
+      : deterministicEventId(metaEventName, contactId || email, referenceId);
 
-  const matchQuality = [
+    if (!email && !phoneRaw) {
+      console.warn(`[conversion] ${stage} recorded but Meta skipped — no email or phone to match on`);
+    } else {
+      const actionSourceRaw = str(src.actionSource ?? src.action_source) as MetaActionSource;
+      const actionSource = ACTION_SOURCES.includes(actionSourceRaw) ? actionSourceRaw : "website";
+
+      metaResult = await sendMetaEvent({
+        eventName: metaEventName,
+        eventId,
+        actionSource,
+        eventTime: occurredAt ? Math.floor(occurredAt.getTime() / 1000) : undefined,
+        sourceUrl: sanitizeUrl(str(src.sourceUrl)) ?? attribution.landing_url,
+        fbp: attribution.fbp,
+        fbc: attribution.fbc,
+        attribution,
+        user: {
+          email: email || undefined,
+          phone: phone?.digits,
+          firstName: firstName || undefined,
+          lastName: lastName || undefined,
+          country: phone?.countryCode === "48" ? "pl" : undefined,
+          externalId: email || contactId || undefined,
+        },
+        ...(value !== undefined ? { value, currency: currency || "PLN" } : {}),
+        customData: {
+          ...(str(src.contentName) ? { content_name: str(src.contentName) } : {}),
+          ...(contactId ? { ghl_contact_id: contactId } : {}),
+          ...(referenceId ? { ghl_reference_id: referenceId } : {}),
+        },
+      });
+    }
+  }
+
+  const matchKeys = [
     email && "em",
     phone && "ph",
     attribution.fbc && "fbc",
     attribution.fbp && "fbp",
   ].filter(Boolean);
 
-  if (!result.ok && !result.skipped) {
-    // Non-2xx makes GHL retry — safe, because the event_id is deterministic.
-    console.error(`[conversion] ${eventName} failed: ${result.error}`);
-    return json({ ok: false, event: eventName, eventId, error: result.error }, 502);
-  }
+  const metaStatus = !metaEventName
+    ? "n/a"
+    : !metaResult
+      ? "skipped:no_identifiers"
+      : metaResult.ok
+        ? "sent"
+        : metaResult.skipped
+          ? `skipped:${metaResult.error}`
+          : `failed:${metaResult.error}`;
 
-  // events_received and fbtrace_id come straight from Meta's response: proof
-  // the event was accepted, and the handle Meta support searches on.
   console.info(
-    `[conversion] ${eventName} ${result.ok ? "sent" : `skipped:${result.error}`} ` +
-      `contact=${contactId || email} id=${eventId} match=[${matchQuality.join(",")}] ` +
-      `received=${result.eventsReceived ?? "?"} trace=${result.fbTraceId ?? "-"} ` +
+    `[conversion] stage=${stage} ledger=${ledger.ok ? "ok" : `failed:${ledger.error}`} ` +
+      `meta=${metaEventName ?? "-"}:${metaStatus} contact=${contactId || email} ` +
+      `match=[${matchKeys.join(",")}] received=${metaResult?.eventsReceived ?? "-"} ` +
+      `trace=${metaResult?.fbTraceId ?? "-"} ` +
       `test=${process.env.META_CAPI_TEST_EVENT_CODE?.trim() || "LIVE"} ` +
       `${Date.now() - startedAt}ms`
   );
 
+  // A Meta transport failure returns 502 so GHL retries — the deterministic
+  // event_id and the coalesce() stage write make the retry harmless. A ledger
+  // failure does the same: losing a stage silently would corrupt every rate.
+  if (metaResult && !metaResult.ok && !metaResult.skipped) {
+    return json({ ok: false, stage, error: metaResult.error, eventId }, 502);
+  }
+  if (!ledger.ok && !ledger.skipped) {
+    return json({ ok: false, stage, error: `ledger:${ledger.error}` }, 502);
+  }
+
   return json({
     ok: true,
-    event: eventName,
+    stage,
+    leadId: ledger.leadId,
+    metaEvent: metaEventName ?? null,
+    metaStatus,
     eventId,
-    delivered: result.ok,
-    skipped: result.skipped ?? false,
-    // "no_paid_click" = organic lead, deliberately withheld from Meta.
-    reason: result.ok ? undefined : result.error,
-    eventsReceived: result.eventsReceived,
-    fbTraceId: result.fbTraceId,
+    matchKeys,
+    eventsReceived: metaResult?.eventsReceived,
+    fbTraceId: metaResult?.fbTraceId,
     testEventCode: process.env.META_CAPI_TEST_EVENT_CODE?.trim() || null,
-    matchKeys: matchQuality,
   });
 }
 
 /**
- * Authenticated health check — open this in a browser after deploying to
- * confirm the environment variables actually made it into the build:
+ * Authenticated health check — open in a browser after deploying to confirm the
+ * environment variables actually made it into the build:
  *
  *   https://yourdomain.com/api/conversion?token=<CONVERSION_WEBHOOK_SECRET>
- *
- * Without a valid token it behaves like the endpoint doesn't exist.
  */
 export async function GET(request: Request) {
   if (!SECRET || SECRET.length < 16) {
@@ -295,15 +378,29 @@ export async function GET(request: Request) {
         process.env.META_CAPI_ACCESS_TOKEN
     ),
     ghlConfigured: Boolean(process.env.GHL_API_KEY && process.env.GHL_LOCATION_ID),
+    supabaseConfigured: Boolean(
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)
+    ),
     // A value here means every event is going to Test Events and counts for nothing.
     testEventCode: process.env.META_CAPI_TEST_EVENT_CODE?.trim() || null,
-    acceptedEvents: Object.keys(EVENT_ALIASES),
+    stages: Object.keys(STAGE_ALIASES),
+    stagesReportedToMeta: META_EVENT_FOR_STAGE,
   });
 }
 
 /* -------------------------------------------------------------------------- *
  * Helpers
  * -------------------------------------------------------------------------- */
+
+/** `metaEvent: "none"` suppresses; an explicit allowed name overrides the map. */
+function resolveMetaEvent(stage: LeadStage, override: string): MetaEventName | null {
+  const normalized = override.trim().toLowerCase();
+  if (normalized === "none" || normalized === "off" || normalized === "false") return null;
+  if (normalized === "schedule") return "Schedule";
+  if (normalized === "purchase") return "Purchase";
+  return META_EVENT_FOR_STAGE[stage] ?? null;
+}
 
 /**
  * Merges a nested envelope into the top level. GHL puts Custom Data under
@@ -346,10 +443,10 @@ function num(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function parseIsoSeconds(value: string): number | undefined {
+function parseDate(value: string): Date | undefined {
   if (!value) return undefined;
   const ms = Date.parse(value);
-  return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+  return Number.isFinite(ms) ? new Date(ms) : undefined;
 }
 
 function bearer(header: string | null): string | undefined {

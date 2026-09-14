@@ -16,6 +16,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 
 import { upsertGhlContact } from "@/lib/ghl";
+import { recordLeadOptIn } from "@/lib/leads";
 import { sendSubmitApplication } from "@/lib/meta-capi";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { parseRegistrationInput } from "@/lib/validation";
@@ -154,8 +155,25 @@ export async function POST(request: Request) {
     );
   }
 
+  // The funnel ledger. Written after GHL so the lead row carries the contact id
+  // that every later stage webhook will be keyed on. Best-effort: a Supabase
+  // outage costs you a row in reporting, never the lead itself.
+  const ledger = await recordLeadOptIn({
+    ghlContactId: ghl.contactId,
+    email: input.email,
+    phone: input.phone.e164,
+    fullName: input.fullName,
+    attribution,
+    metaEventId: eventId,
+  });
+
+  if (!ledger.ok && !ledger.skipped) {
+    console.error(`[register] lead ledger write failed: ${ledger.error ?? "unknown"}`);
+  }
+
   console.info(
     `[register] ok contact=${ghl.contactId ?? "?"} capi=${metaStatus} ` +
+      `lead=${ledger.ok ? "logged" : ledger.skipped ? "off" : "failed"} ` +
       `received=${meta.eventsReceived ?? "?"} trace=${meta.fbTraceId ?? "-"} ` +
       `test=${process.env.META_CAPI_TEST_EVENT_CODE?.trim() || "LIVE"} ` +
       `src=${attribution.utm_source ?? "direct"} ${Date.now() - startedAt}ms`

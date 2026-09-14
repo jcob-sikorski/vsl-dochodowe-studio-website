@@ -23,8 +23,18 @@ export const UTM_KEYS = [
 
 export const CLICK_ID_KEYS = ["fbclid", "gclid", "msclkid", "ttclid", "twclid", "li_fat_id"] as const;
 
+/**
+ * Platform object IDs, passed through the ad's URL parameters.
+ *
+ * These are what make per-creative cost reporting possible: ad and campaign
+ * NAMES get edited, duplicated and renamed, but the IDs never change. Set them
+ * in Meta's URL parameters field with {{ad.id}}, {{adset.id}}, {{campaign.id}}.
+ */
+export const PLATFORM_ID_KEYS = ["ad_id", "adset_id", "campaign_id"] as const;
+
 export type UtmKey = (typeof UTM_KEYS)[number];
 export type ClickIdKey = (typeof CLICK_ID_KEYS)[number];
+export type PlatformIdKey = (typeof PLATFORM_ID_KEYS)[number];
 
 export interface Attribution {
   utm_source?: string;
@@ -40,6 +50,11 @@ export interface Attribution {
   ttclid?: string;
   twclid?: string;
   li_fat_id?: string;
+
+  /** Meta object IDs from the ad's URL parameters — stable across renames. */
+  ad_id?: string;
+  adset_id?: string;
+  campaign_id?: string;
 
   /** Meta browser cookies, read client-side and forwarded to the server. */
   fbp?: string;
@@ -96,6 +111,7 @@ export function normalizeAttribution(input: unknown): Attribution {
   const keys: (keyof Attribution)[] = [
     ...UTM_KEYS,
     ...CLICK_ID_KEYS,
+    ...PLATFORM_ID_KEYS,
     "fbp",
     "fbc",
     "landing_url",
@@ -233,6 +249,14 @@ export function captureAttributionFromUrl(): Attribution | null {
 
   for (const key of CLICK_ID_KEYS) {
     const value = sanitizeAttrValue(params.get(key), MAX_LEN[key] ?? DEFAULT_MAX_LEN);
+    if (value) {
+      incoming[key] = value;
+      hasAny = true;
+    }
+  }
+
+  for (const key of PLATFORM_ID_KEYS) {
+    const value = sanitizeAttrValue(params.get(key), 64);
     if (value) {
       incoming[key] = value;
       hasAny = true;

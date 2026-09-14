@@ -5,7 +5,7 @@ const nextConfig = {
   allowedDevOrigins: [
     "vsl-dochodowe-studio-website.vercel.app",
     "vsl.dochodowestudio.com",
-    "https://pasture-blunt-buckshot.ngrok-free.dev"
+    "pasture-blunt-buckshot.ngrok-free.dev"
   ],
 
   images: {
