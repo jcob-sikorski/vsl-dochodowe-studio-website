@@ -97,7 +97,7 @@ const STAGE_ALIASES: Record<string, LeadStage> = {
  * Only these two stages are worth a Meta conversion. Everything else is
  * pipeline bookkeeping and stays local.
  *
- * Note `showed` deliberately maps to nothing: it used to send `Schedule`, which
+ * Note `showed` deliberately maps to nothing: it used to send `Lead`, which
  * collides with `booked` on the same opportunity — identical event name and
  * reference produce an identical event_id, so Meta would discard it as a
  * duplicate and the show would silently vanish. Show rate lives in Supabase.
@@ -397,7 +397,7 @@ export async function GET(request: Request) {
 function resolveMetaEvent(stage: LeadStage, override: string): MetaEventName | null {
   const normalized = override.trim().toLowerCase();
   if (normalized === "none" || normalized === "off" || normalized === "false") return null;
-  if (normalized === "schedule") return "Schedule";
+  if (normalized === "Lead") return "Lead";
   if (normalized === "purchase") return "Purchase";
   return META_EVENT_FOR_STAGE[stage] ?? null;
 }

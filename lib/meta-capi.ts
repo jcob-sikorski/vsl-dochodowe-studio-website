@@ -6,7 +6,7 @@
  * Events this app sends:
  *   - "SubmitApplication"  form submitted      (/api/register, server-side)
  *   - "PageView"           route change        (pixel component -> server action)
- *   - "Schedule"           call booked/showed  (/api/conversion, GHL webhook)
+ *   - "Lead"           call booked/showed  (/api/conversion, GHL webhook)
  *   - "Purchase"           deal won            (/api/conversion, GHL webhook)
  *
  * Nothing else is ever sent — ALLOWED_EVENTS is enforced at runtime.
@@ -51,12 +51,12 @@ const ONLY_PAID_TRAFFIC =
  *
  *   SubmitApplication - form submitted (fired by /api/register)
  *   PageView          - route change (fired by the pixel component)
- *   Schedule          - call booked / showed  (fired by /api/conversion)
+ *   Lead          - call booked / showed  (fired by /api/conversion)
  *   Purchase          - deal won              (fired by /api/conversion)
  *
  * Anything not on this list is refused at runtime.
  */
-export const ALLOWED_EVENTS = ["SubmitApplication", "PageView", "Schedule", "Purchase"] as const;
+export const ALLOWED_EVENTS = ["SubmitApplication", "PageView", "Lead", "Purchase"] as const;
 export type MetaEventName = (typeof ALLOWED_EVENTS)[number];
 
 /** Meta's accepted action_source values. */
@@ -391,11 +391,11 @@ export function sendPageView(args: Omit<SendMetaEventArgs, "eventName">): Promis
  * does the matching. Override per call with `actionSource` when the booking
  * genuinely happened elsewhere (e.g. "phone_call").
  */
-export function sendSchedule(args: Omit<SendMetaEventArgs, "eventName">): Promise<MetaResult> {
-  return sendMetaEvent({ actionSource: "website", ...args, eventName: "Schedule" });
+export function sendLead(args: Omit<SendMetaEventArgs, "eventName">): Promise<MetaResult> {
+  return sendMetaEvent({ actionSource: "website", ...args, eventName: "Lead" });
 }
 
-/** Offline conversion: the deal closed. See sendSchedule on action_source. */
+/** Offline conversion: the deal closed. See sendLead on action_source. */
 export function sendPurchase(args: Omit<SendMetaEventArgs, "eventName">): Promise<MetaResult> {
   return sendMetaEvent({ actionSource: "website", ...args, eventName: "Purchase" });
 }
