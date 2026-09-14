@@ -49,7 +49,7 @@ export function ThankYouVideoSection({
         {/* Video Container — same treatment as the hero VSL: black bg, rounded-2xl, shadow-2xl, no colored border */}
         <div className="relative mt-6 w-full overflow-hidden rounded-2xl bg-black shadow-2xl">
           <iframe
-            src="https://player.mux.com/t6BcSjNXtsAFs01M01w9ls7kia2WZNxf4A7TZrip5RPvs"
+            src="https://player.mux.com/tD777b3EcDWWHsGRl02dL3KNKXjx01ckmZgvurm8h01x00U"
             style={{ width: "100%", display: "block", border: "none", aspectRatio: "53/29" }}
             allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
             allowFullScreen

@@ -12,27 +12,22 @@ const FAQ_VIDEOS: FaqVideo[] = [
   {
     id: "mentor-credibility",
     question: "Czy Bartłomiej faktycznie sam prowadził studio?",
-    videoUrl: "https://player.mux.com/L00VgJ9ZfPkVpXB9GTsX02DCIUT64JhtoBWouHFZ3Zr018",
+    videoUrl: "https://player.mux.com/jrAxISpD91EDh7yvvycvop4MKvW01Ys5puLcMT9PLCbQ",
   },
   {
     id: "guarantee",
     question: "Jak dokładnie wygląda gwarancja?",
-    videoUrl: "https://player.mux.com/iLQZInH78coFBEblAy2AZXldrqgY0291uy4BHk5AFfL8",
+    videoUrl: "https://player.mux.com/s6T5U76yECmzB1nAljI00VH8pwojjIMIP02QxiQeIKQkU",
   },
   {
     id: "burned-before",
     question: "Próbowałem już innych konsultantów/kursów — czym to się różni?",
-    videoUrl: "https://player.mux.com/WsxEHKzmzQgUqn01tDFEQkQy4FRPi3yhiaXG8j6j01q8U",
+    videoUrl: "https://player.mux.com/eVizCQDsU02pxVXgN01G1M3JzC01s42ciG49npDjyi7dE8",
   },
   {
     id: "realistic-for-my-city",
     question: "Czy 20–50 tys. zł zysku jest realne dla mojego miasta?",
-    videoUrl: "https://player.mux.com/aEPKkLGHnMgKOxwOS8ZaWa7qRvrzDgQRtZMujEHK3o8",
-  },
-  {
-    id: "starting-capital",
-    question: "Ile czasu i pieniędzy potrzeba na osiągnięcie rezultatu?",
-    videoUrl: "https://player.mux.com/9JZP3FHPuh4mQZCUTYPebaRj67F3IKN02t5ne6SWkMX4",
+    videoUrl: "https://player.mux.com/rmawf4U02ib00CrMEvUb01j3W5KDR4MKEd1bs2jJQ9u4gE",
   }
 ];
 
