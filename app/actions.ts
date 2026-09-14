@@ -6,7 +6,7 @@
  * The ONLY server action exposed to the browser is `trackPageView`.
  *
  * It carries no PII and cannot be used to forge a conversion: the
- * "Lead" event is fired exclusively inside /api/register, after
+ * "SubmitApplication" event is fired exclusively inside /api/register, after
  * the submission has actually been validated and written to GoHighLevel.
  * -------------------------------------------------------------------------- */
 
