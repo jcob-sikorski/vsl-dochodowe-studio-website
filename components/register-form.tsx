@@ -4,9 +4,9 @@
  * src/components/register-form.tsx
  *
  * Submits to /api/register, which is the only thing that writes to GoHighLevel
- * and the only thing that sends the Meta "SubmitApplication" conversion.
+ * and the only thing that sends the Meta "Lead" conversion.
  *
- * The browser fires its own SubmitApplication with the SAME eventID the server
+ * The browser fires its own Lead with the SAME eventID the server
  * used, so Meta deduplicates the pair into one conversion.
  * -------------------------------------------------------------------------- */
 
@@ -115,7 +115,7 @@ export function RegisterForm({
 
   /* ---------------- Meta browser event -------------------------------- */
 
-  function fireBrowserSubmitApplication(args: {
+  function fireBrowserLead(args: {
     eventId: string;
     email: string;
     phoneDigits: string;
@@ -143,12 +143,12 @@ export function RegisterForm({
 
       window.fbq(
         "track",
-        "SubmitApplication",
+        "Lead",
         { content_name: process.env.NEXT_PUBLIC_OFFER_NAME || "Konsultacja" },
         { eventID: args.eventId }
       );
     } catch (error) {
-      console.error("[pixel] SubmitApplication failed:", error);
+      console.error("[pixel] Lead failed:", error);
     }
   }
 
@@ -218,7 +218,7 @@ export function RegisterForm({
       }
 
       // Mirror the server's conversion in the browser, sharing its eventID.
-      fireBrowserSubmitApplication({
+      fireBrowserLead({
         eventId: data.eventId || eventId,
         email: normalizedEmail,
         phoneDigits: normalizedPhone?.digits ?? "",

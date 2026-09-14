@@ -6,7 +6,7 @@
  *   1. validate + normalise everything (never trust the client)
  *   2. rate-limit / honeypot
  *   3. upsert the contact in GoHighLevel with FULL attribution
- *   4. send exactly one "SubmitApplication" event to the Meta Conversions API
+ *   4. send exactly one "Lead" event to the Meta Conversions API
  *
  * No WebinarJam. No SMS. No email provider. Nothing else touches this path.
  * -------------------------------------------------------------------------- */
@@ -17,7 +17,7 @@ import { NextResponse } from "next/server";
 
 import { upsertGhlContact } from "@/lib/ghl";
 import { recordLeadOptIn } from "@/lib/leads";
-import { sendSubmitApplication } from "@/lib/meta-capi";
+import { sendLead } from "@/lib/meta-capi";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { parseRegistrationInput } from "@/lib/validation";
 
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       userAgent,
       sourceUrl,
     }),
-    sendSubmitApplication({
+    sendLead({
       eventId,
       sourceUrl,
       clientIp,
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
 
   // "no_paid_click" is the organic gate doing its job, not a problem.
   if (!meta.ok && !meta.skipped) {
-    console.error(`[register] CAPI SubmitApplication not delivered: ${meta.error ?? "unknown"}`);
+    console.error(`[register] CAPI Lead not delivered: ${meta.error ?? "unknown"}`);
   }
 
   if (!ghl.ok) {

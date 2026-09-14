@@ -4,7 +4,7 @@
  * The ONLY place that talks to the Meta Conversions API.
  *
  * Events this app sends:
- *   - "SubmitApplication"  form submitted      (/api/register, server-side)
+ *   - "Lead"  form submitted      (/api/register, server-side)
  *   - "PageView"           route change        (pixel component -> server action)
  *   - "Schedule"           call booked/showed  (/api/conversion, GHL webhook)
  *   - "Purchase"           deal won            (/api/conversion, GHL webhook)
@@ -49,14 +49,14 @@ const ONLY_PAID_TRAFFIC =
 /**
  * The complete allow-list of events this codebase may send.
  *
- *   SubmitApplication - form submitted (fired by /api/register)
+ *   Lead - form submitted (fired by /api/register)
  *   PageView          - route change (fired by the pixel component)
  *   Schedule          - call booked / showed  (fired by /api/conversion)
  *   Purchase          - deal won              (fired by /api/conversion)
  *
  * Anything not on this list is refused at runtime.
  */
-export const ALLOWED_EVENTS = ["SubmitApplication", "PageView", "Schedule", "Purchase"] as const;
+export const ALLOWED_EVENTS = ["Lead", "PageView", "Schedule", "Purchase"] as const;
 export type MetaEventName = (typeof ALLOWED_EVENTS)[number];
 
 /** Meta's accepted action_source values. */
@@ -370,10 +370,10 @@ export async function sendMetaEvent(args: SendMetaEventArgs): Promise<MetaResult
 }
 
 /** Convenience wrapper — the one conversion event this funnel reports. */
-export function sendSubmitApplication(
+export function sendLead(
   args: Omit<SendMetaEventArgs, "eventName">
 ): Promise<MetaResult> {
-  return sendMetaEvent({ ...args, eventName: "SubmitApplication" });
+  return sendMetaEvent({ ...args, eventName: "Lead" });
 }
 
 export function sendPageView(args: Omit<SendMetaEventArgs, "eventName">): Promise<MetaResult> {
