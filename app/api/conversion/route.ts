@@ -103,7 +103,7 @@ const STAGE_ALIASES: Record<string, LeadStage> = {
  * duplicate and the show would silently vanish. Show rate lives in Supabase.
  */
 const META_EVENT_FOR_STAGE: Partial<Record<LeadStage, MetaEventName>> = {
-  booked: "Schedule",
+  booked: "Lead",
   won: "Purchase",
 };
 
