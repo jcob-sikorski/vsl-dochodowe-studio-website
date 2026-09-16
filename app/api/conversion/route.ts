@@ -26,7 +26,7 @@ import { NextResponse } from "next/server";
 
 import { normalizeAttribution, type Attribution } from "@/lib/attribution";
 import { getGhlContactSnapshot } from "@/lib/ghl";
-import { recordLeadStage, type LeadStage } from "@/lib/leads";
+import { pingSupabase, recordLeadStage, type LeadStage } from "@/lib/leads";
 import { sendMetaEvent, type MetaActionSource, type MetaEventName } from "@/lib/meta-capi";
 import { normalizePhone } from "@/lib/phone";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -371,10 +371,18 @@ export async function GET(request: Request) {
     return json({ ok: false, error: "method_not_allowed" }, 405, { Allow: "POST" });
   }
 
+  // A real round trip, not just "is the env var set". This is the one call that
+  // distinguishes "misconfigured" from "configured but unreachable right now",
+  // and it reports the underlying network reason when it fails.
+  const supabase = await pingSupabase();
+
   return json({
     ok: true,
     endpoint: "conversion",
     secretConfigured: true,
+    supabaseReachable: supabase.ok,
+    supabaseError: supabase.ok ? null : (supabase.error ?? "unknown"),
+    supabasePingMs: supabase.ms,
     metaConfigured: Boolean(
       (process.env.NEXT_PUBLIC_META_PIXEL_ID || process.env.META_PIXEL_ID) &&
         process.env.META_CAPI_ACCESS_TOKEN

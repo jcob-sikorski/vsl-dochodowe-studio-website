@@ -15,6 +15,65 @@ import type { Attribution } from "./attribution";
 import { hasPaidClick } from "./attribution";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
 
+/**
+ * supabase-js catches a transport-level failure inside its own promise chain and
+ * returns it as a PostgrestError whose `message` is just `String(thrownError)`.
+ * For a network failure that is the bare "TypeError: fetch failed" — the reason
+ * that actually matters (ENOTFOUND, ECONNREFUSED, ENETUNREACH, a TLS error) sits
+ * in `details`/`code`, or in the original error's `cause`, and Node never puts
+ * `cause` into the message. Logging `message` alone is exactly how an outage
+ * becomes impossible to diagnose after the fact.
+ */
+function describeSupabaseError(
+  error: { message?: string; details?: string; hint?: string; code?: string } | null
+): string {
+  if (!error) return "unknown";
+  const parts = [
+    error.message?.trim(),
+    error.code?.trim() ? `code=${error.code.trim()}` : "",
+    error.hint?.trim() ? `hint=${error.hint.trim()}` : "",
+    error.details?.trim() ? `details=${error.details.trim().slice(0, 400)}` : "",
+  ];
+  return parts.filter(Boolean).join(" | ") || "unknown";
+}
+
+/** Same problem for a thrown error: the real reason hides in `.cause`. */
+function describeThrown(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const cause = (err as { cause?: unknown }).cause;
+  if (cause instanceof Error) {
+    const code = (cause as { code?: string }).code;
+    return `${err.name}: ${err.message} | cause=${cause.name}: ${cause.message}${code ? ` (${code})` : ""}`;
+  }
+  return cause ? `${err.name}: ${err.message} | cause=${String(cause)}` : `${err.name}: ${err.message}`;
+}
+
+/**
+ * A real round trip, for the /api/conversion health check.
+ *
+ * `supabaseConfigured` only proves the environment variables exist. This proves
+ * the running deployment can actually reach the database right now — and when it
+ * can't, says why.
+ */
+export async function pingSupabase(): Promise<{
+  ok: boolean;
+  skipped?: boolean;
+  error?: string;
+  ms: number;
+}> {
+  const startedAt = Date.now();
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, skipped: true, error: "supabase_not_configured", ms: 0 };
+
+  try {
+    const { error } = await supabase.from("leads").select("id").limit(1);
+    const ms = Date.now() - startedAt;
+    return error ? { ok: false, error: describeSupabaseError(error), ms } : { ok: true, ms };
+  } catch (err) {
+    return { ok: false, error: describeThrown(err), ms: Date.now() - startedAt };
+  }
+}
+
 /** The stages a lead can pass through. Order is the funnel order. */
 export const LEAD_STAGES = [
   "opted_in",
@@ -100,14 +159,15 @@ export async function recordLeadOptIn(input: LeadOptInInput): Promise<LeadResult
     });
 
     if (error) {
-      console.error(`[leads] opt-in insert failed: ${error.message}`);
-      return { ok: false, error: error.message };
+      const described = describeSupabaseError(error);
+      console.error(`[leads] opt-in insert failed: ${described}`);
+      return { ok: false, error: described };
     }
 
     return { ok: true, leadId: typeof data === "string" ? data : undefined };
   } catch (err) {
-    console.error("[leads] opt-in insert threw:", err);
-    return { ok: false, error: String(err) };
+    console.error(`[leads] opt-in insert threw: ${describeThrown(err)}`);
+    return { ok: false, error: describeThrown(err) };
   }
 }
 
@@ -131,14 +191,15 @@ export async function recordLeadStage(input: LeadStageInput): Promise<LeadResult
     });
 
     if (error) {
-      console.error(`[leads] stage "${input.stage}" failed: ${error.message}`);
-      return { ok: false, error: error.message };
+      const described = describeSupabaseError(error);
+      console.error(`[leads] stage "${input.stage}" failed: ${described}`);
+      return { ok: false, error: described };
     }
 
     return { ok: true, leadId: typeof data === "string" ? data : undefined };
   } catch (err) {
-    console.error("[leads] stage write threw:", err);
-    return { ok: false, error: String(err) };
+    console.error(`[leads] stage write threw: ${describeThrown(err)}`);
+    return { ok: false, error: describeThrown(err) };
   }
 }
 
@@ -190,14 +251,15 @@ export async function recordAbView(input: AbViewInput): Promise<LeadResult> {
     });
 
     if (error) {
-      console.error(`[ab] view insert failed: ${error.message}`);
-      return { ok: false, error: error.message };
+      const described = describeSupabaseError(error);
+      console.error(`[ab] view insert failed: ${described}`);
+      return { ok: false, error: described };
     }
 
     return { ok: true };
   } catch (err) {
-    console.error("[ab] view insert threw:", err);
-    return { ok: false, error: String(err) };
+    console.error(`[ab] view insert threw: ${describeThrown(err)}`);
+    return { ok: false, error: describeThrown(err) };
   }
 }
 
