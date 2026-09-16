@@ -1,5 +1,7 @@
 "use client";
 
+import type React from "react";
+import Script from "next/script";
 import { RegisterForm } from "@/components/register-form";
 import {
   HEADLINE_EXPERIMENT,
@@ -8,8 +10,21 @@ import {
   type AbVariant,
 } from "@/lib/ab";
 
-const MUX_PLAYER_SRC =
-  "https://player.mux.com/t6BcSjNXtsAFs01M01w9ls7kia2WZNxf4A7TZrip5RPvs";
+const WISTIA_MEDIA_ID = "7x5z8afagi";
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      "wistia-player": React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement>,
+        HTMLElement
+      > & {
+        "media-id"?: string;
+        aspect?: string | number;
+      };
+    }
+  }
+}
 
 function StepBar({ step, title }: { step: number; title: string }) {
   return (
@@ -64,13 +79,16 @@ export function VslHeroSection({ variant }: VslHeroSectionProps) {
         <div className="flex w-full flex-col items-center text-center">
 
           {/* Main Headline */}
-          <h1 className="mt-0 w-full text-[1.28rem] font-extrabold leading-[1.2] tracking-tight text-black min-[390px]:text-[1.42rem] sm:text-[1.85rem] sm:leading-[1.18] lg:text-[2.25rem]">
-            <span className="block text-neutral-900">
+          <h1
+            className="mt-0 w-full text-[1.32rem] font-bold leading-[1.36] tracking-[-0.01em] text-neutral-900 min-[390px]:text-[1.46rem] sm:text-[1.9rem] sm:leading-[1.3] lg:text-[2.3rem] lg:leading-[1.26]"
+            style={{ textWrap: "balance" }}
+          >
+            <span className="block">
               {segments.map((segment, index) =>
                 segment.underline ? (
                   <span
                     key={index}
-                    className="underline decoration-neutral-900 decoration-2 underline-offset-2"
+                    className="underline decoration-orange-400 decoration-[3px] underline-offset-4"
                   >
                     {segment.text}
                   </span>
@@ -91,14 +109,33 @@ export function VslHeroSection({ variant }: VslHeroSectionProps) {
             <StepBar step={1} title="Obejrzyj wideo poniżej" />
           </div>
 
-          {/* Mux VSL */}
+          {/* Wistia VSL */}
           <div className="relative mt-3 aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-2xl min-[390px]:mt-3.5 sm:mt-4">
-            <iframe
-              src={MUX_PLAYER_SRC}
+            <Script src="https://fast.wistia.com/player.js" strategy="lazyOnload" />
+            <Script
+              src={`https://fast.wistia.com/embed/${WISTIA_MEDIA_ID}.js`}
+              strategy="lazyOnload"
+              type="module"
+            />
+            <style
+              dangerouslySetInnerHTML={{
+                __html: `
+                  wistia-player[media-id='${WISTIA_MEDIA_ID}']:not(:defined) {
+                    background: center / contain no-repeat url('https://fast.wistia.com/embed/medias/${WISTIA_MEDIA_ID}/swatch');
+                    display: block;
+                    filter: blur(5px);
+                    position: absolute;
+                    inset: 0;
+                    width: 100%;
+                    height: 100%;
+                  }
+                `,
+              }}
+            />
+            <wistia-player
+              media-id={WISTIA_MEDIA_ID}
+              aspect="1.7777777777777777"
               className="absolute inset-0 h-full w-full"
-              allow="autoplay; fullscreen; picture-in-picture"
-              allowFullScreen
-              title="Szkolenie — Dochodowe Studio"
             />
           </div>
 

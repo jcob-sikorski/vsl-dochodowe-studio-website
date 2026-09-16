@@ -69,24 +69,29 @@ export const HEADLINE_EXPERIMENT: AbExperiment = {
 
   subheadline:
     "Dołącz do programu mentoringowego dla właścicieli studiów treningu personalnego.",
-
-  variants: [
+    variants: [
     {
-      id: "control",
-      label: "A — Gwarantowane 20–50 tys. zł",
-      weight: 50,
-      headline:
-        "Studio treningu personalnego, które daje 20–50 tys. zł zysku miesięcznie — na 50 metrach, bez karnetów i bez Ciebie na sali",
-    },
-    {
-      id: "b",
-      label: "B — (do uzupełnienia)",
-      weight: 50,
-      // TODO: replace with the headline you want to test against the control.
-      headline:
-        "Przestań być najlepiej opłacanym pracownikiem własnego studia",
-    },
-  ],
+        id: "control",
+        label: "A — Zysk miesięczny (baza)",
+        weight: 34,
+        headline:
+          "Naucz się, jak zbudować studio, które generuje 20–50 tys. zł miesięcznie",
+      },
+      {
+        id: "b",
+        label: "B — Sprzedaż pakietów",
+        weight: 33,
+        headline:
+          "Naucz się, jak regularnie sprzedawać programy treningowe za 5 000+ zł",
+      },
+      {
+        id: "c",
+        label: "C — Zatrudnianie i wolność",
+        weight: 33,
+        headline:
+          "Naucz się, jak zatrudnić trenerów, którzy sprzedają i prowadzą studio za Ciebie",
+      },
+    ]
 };
 
 /* ========================================================================== *
