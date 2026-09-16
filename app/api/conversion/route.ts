@@ -218,8 +218,10 @@ export async function POST(request: Request) {
 
   // Look the contact up when we'll need click identifiers we weren't given, or
   // when we have no email to match the lead row on.
-  const needsClickIds =
-    Boolean(metaEventName) && !attribution.fbc && !attribution.fbp && !attribution.fbclid;
+  // Only the paid-click identifiers count. fbp is written for every visitor,
+  // organic included, so it must never suppress the lookup whose whole job is
+  // recovering the identifiers that DO establish attribution.
+  const needsClickIds = Boolean(metaEventName) && !attribution.fbc && !attribution.fbclid;
 
   if (contactId && (needsClickIds || !email)) {
     const snapshot = await getGhlContactSnapshot(contactId);
@@ -397,7 +399,7 @@ export async function GET(request: Request) {
 function resolveMetaEvent(stage: LeadStage, override: string): MetaEventName | null {
   const normalized = override.trim().toLowerCase();
   if (normalized === "none" || normalized === "off" || normalized === "false") return null;
-  if (normalized === "Lead") return "Lead";
+  if (normalized === "lead") return "Lead";
   if (normalized === "purchase") return "Purchase";
   return META_EVENT_FOR_STAGE[stage] ?? null;
 }
@@ -434,13 +436,59 @@ function str(value: unknown): string {
   return trimmed;
 }
 
+/**
+ * Parses a money value out of whatever GHL sends, in either convention:
+ * "4997", "4 997,00", "4997.50", "1,234.56", "4.997,50", "PLN 4 997".
+ *
+ * The rule: when BOTH separators appear, the rightmost one is the decimal point
+ * and the other is thousands grouping. When only one appears, it is grouping
+ * only if it repeats ("1.234.567") or if it sits exactly three digits from the
+ * end behind a 1–3 digit head ("1,500") — which is what real grouping looks
+ * like. Anything else is a decimal separator, so "4997.500" stays 4997.5.
+ *
+ * Getting this wrong is expensive and silent: an unparsed value means a
+ * Purchase reaches Meta with no value/currency (no ROAS, no value optimisation)
+ * and a null revenue in the ledger.
+ */
 function num(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return undefined;
-  const cleaned = value.replace(/\s/g, "").replace(/,/g, ".").replace(/[^\d.-]/g, "");
+
+  // Drop currency symbols, ISO codes and any kind of space (incl. NBSP/thin).
+  let cleaned = value.replace(/[^\d.,-]/g, "");
   if (!cleaned) return undefined;
+
+  const negative = cleaned.startsWith("-");
+  cleaned = cleaned.replace(/-/g, "");
+  if (!cleaned) return undefined;
+
+  const lastDot = cleaned.lastIndexOf(".");
+  const lastComma = cleaned.lastIndexOf(",");
+
+  if (lastDot !== -1 && lastComma !== -1) {
+    // Both present: rightmost wins as the decimal separator.
+    const decimalAt = Math.max(lastDot, lastComma);
+    const groupChar = decimalAt === lastDot ? "," : ".";
+    cleaned =
+      cleaned.slice(0, decimalAt).split(groupChar).join("") + "." + cleaned.slice(decimalAt + 1);
+  } else if (lastDot !== -1 || lastComma !== -1) {
+    const sep = lastDot !== -1 ? "." : ",";
+    const sepAt = lastDot !== -1 ? lastDot : lastComma;
+    const decimals = cleaned.length - sepAt - 1;
+    const occurrences = cleaned.split(sep).length - 1;
+    const head = cleaned.slice(0, sepAt);
+    const grouped = occurrences > 1 || (decimals === 3 && head.length >= 1 && head.length <= 3);
+
+    cleaned = grouped
+      ? cleaned.split(sep).join("")
+      : `${head}.${cleaned.slice(sepAt + 1)}`;
+  }
+
+  if (!/^\d*\.?\d*$/.test(cleaned) || cleaned === "." || cleaned === "") return undefined;
+
   const parsed = Number(cleaned);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  if (!Number.isFinite(parsed)) return undefined;
+  return negative ? -parsed : parsed;
 }
 
 function parseDate(value: string): Date | undefined {

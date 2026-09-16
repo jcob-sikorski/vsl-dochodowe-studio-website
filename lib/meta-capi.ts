@@ -6,7 +6,7 @@
  * Events this app sends:
  *   - "SubmitApplication"  form submitted      (/api/register, server-side)
  *   - "PageView"           route change        (pixel component -> server action)
- *   - "Lead"           call booked/showed  (/api/conversion, GHL webhook)
+ *   - "Lead"               call booked         (/api/conversion, GHL webhook)
  *   - "Purchase"           deal won            (/api/conversion, GHL webhook)
  *
  * Nothing else is ever sent — ALLOWED_EVENTS is enforced at runtime.
@@ -32,26 +32,32 @@ const ACCESS_TOKEN = (process.env.META_CAPI_ACCESS_TOKEN || "").trim();
 const TEST_EVENT_CODE = process.env.META_CAPI_TEST_EVENT_CODE?.trim();
 
 /**
- * ON by default: nothing reaches Meta for a visitor with no evidence of an ad
- * click — no fbclid and no fbc. Organic and direct traffic stays out of the
- * pixel entirely, so every conversion in Ads Manager traces to a real click.
+ * OFF by default: every conversion is reported and Meta decides which ones it
+ * can attribute to an ad.
  *
- * The browser pixel applies the same rule in register-form.tsx, so a suppressed
- * lead is suppressed on both sides.
+ * Gating on fbclid/fbc looks tidy but discards real conversions. The whole point
+ * of CAPI is that Meta can match a person on hashed email/phone once the click
+ * ID is gone — someone who clicked on a phone and bought on a laptop, or whose
+ * _fbc aged out under Safari's 7-day cap while this funnel ran VSL -> call ->
+ * close. Those conversions belong to the ad, and withholding them also starves
+ * optimisation, which learns from the Purchase events you actually send.
  *
- * Set META_ONLY_PAID_TRAFFIC=false to report every conversion instead; each one
- * is tagged `traffic_type: "paid" | "organic"` in custom_data either way, so a
- * custom conversion can still separate them.
+ * Sending them does not pollute Ads Manager: ad-level columns only ever credit
+ * conversions Meta itself attributes. Every event carries
+ * `traffic_type: "paid" | "organic"` in custom_data, so a custom conversion
+ * filtered on "paid" still gives you the click-only view on demand.
+ *
+ * Set META_ONLY_PAID_TRAFFIC=true to suppress organic conversions instead.
  */
 const ONLY_PAID_TRAFFIC =
-  (process.env.META_ONLY_PAID_TRAFFIC ?? "true").trim().toLowerCase() !== "false";
+  (process.env.META_ONLY_PAID_TRAFFIC ?? "false").trim().toLowerCase() === "true";
 
 /**
  * The complete allow-list of events this codebase may send.
  *
  *   SubmitApplication - form submitted (fired by /api/register)
  *   PageView          - route change (fired by the pixel component)
- *   Lead          - call booked / showed  (fired by /api/conversion)
+ *   Lead              - call booked (NOT showed; see META_EVENT_FOR_STAGE)
  *   Purchase          - deal won              (fired by /api/conversion)
  *
  * Anything not on this list is refused at runtime.
@@ -293,7 +299,7 @@ export async function sendMetaEvent(args: SendMetaEventArgs): Promise<MetaResult
     return { ok: false, skipped: true, error: "event_not_allowed" };
   }
 
-  // Opt-in organic gate. Off by default; see ONLY_PAID_TRAFFIC above.
+  // Opt-in organic gate. OFF by default; see ONLY_PAID_TRAFFIC above.
   if (ONLY_PAID_TRAFFIC && !isPaid(args)) {
     console.info(`[meta-capi] ${args.eventName} not sent — no fbclid/fbc (organic traffic)`);
     return { ok: false, skipped: true, error: "no_paid_click" };
@@ -381,7 +387,7 @@ export function sendPageView(args: Omit<SendMetaEventArgs, "eventName">): Promis
 }
 
 /**
- * Offline conversion: the lead booked (or showed up for) a call.
+ * Offline conversion: the lead booked a call.
  *
  * action_source is "website" rather than "system_generated" on purpose. The
  * conversion originates from a lead who came through the site, and Meta's

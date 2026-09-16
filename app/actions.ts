@@ -14,7 +14,7 @@ import { cookies, headers } from "next/headers";
 
 import { normalizeAttribution, type Attribution } from "@/lib/attribution";
 import { sendPageView } from "@/lib/meta-capi";
-import { getClientIp } from "@/lib/rate-limit";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { sanitizeUrl } from "@/lib/validation";
 
 export interface TrackPageViewInput {
@@ -49,12 +49,19 @@ export async function trackPageView(input: TrackPageViewInput): Promise<{ ok: bo
       return { ok: false };
     }
 
+    // This is the one Meta event a browser can trigger directly, so cap it.
+    // Generous enough for real navigation, far too tight to flood the pixel.
+    const clientIp = getClientIp(requestHeaders);
+    if (!checkRateLimit(`pageview:${clientIp}`, { limit: 60, windowMs: 60_000 }).allowed) {
+      return { ok: false };
+    }
+
     const attribution = normalizeAttribution(input?.attribution);
 
     const result = await sendPageView({
       eventId,
       sourceUrl: sanitizeUrl(input?.sourceUrl ?? "") ?? undefined,
-      clientIp: getClientIp(requestHeaders),
+      clientIp,
       clientUserAgent: headerList.get("user-agent") ?? undefined,
       fbp: attribution.fbp || cookieStore.get("_fbp")?.value,
       fbc: attribution.fbc || cookieStore.get("_fbc")?.value,

@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { META_PIXEL_ID, makeEventId } from "@/components/facebook-pixel";
-import { hasPaidClick, resolveAttribution } from "@/lib/attribution";
+import { resolveAttribution } from "@/lib/attribution";
 import { normalizePhone } from "@/lib/phone";
 import { isValidEmail, splitName } from "@/lib/validation";
 
@@ -121,14 +121,13 @@ export function RegisterForm({
     phoneDigits: string;
     firstName: string;
     lastName: string;
-    attribution: ReturnType<typeof resolveAttribution>;
+    countryCode?: string;
   }): void {
     if (typeof window === "undefined" || !window.fbq || !META_PIXEL_ID) return;
 
-    // Organic visitor: no fbclid, no fbc. Nothing about this lead goes to Meta,
-    // browser side or server side. The server applies the identical rule.
-    if (!hasPaidClick(args.attribution)) return;
-
+    // No traffic gate here. The server reports every conversion and this event
+    // carries the same eventID, so Meta deduplicates the pair — suppressing the
+    // browser half would only cost match quality on organic leads.
     try {
       // Re-init with Advanced Matching so the browser event carries the same
       // identifiers the server event does. Meta hashes these in the browser.
@@ -137,7 +136,9 @@ export function RegisterForm({
         ph: args.phoneDigits,
         fn: args.firstName.toLowerCase(),
         ln: args.lastName.toLowerCase(),
-        country: "pl",
+        // Only claim PL when the phone actually says so — the server applies
+        // the same test, and a mismatched country hash weakens the match.
+        ...(args.countryCode === "48" ? { country: "pl" } : {}),
         external_id: args.email,
       });
 
@@ -224,7 +225,7 @@ export function RegisterForm({
         phoneDigits: normalizedPhone?.digits ?? "",
         firstName,
         lastName,
-        attribution,
+        countryCode: normalizedPhone?.countryCode,
       });
 
       clarityEvent("registration_succeeded");
