@@ -68,7 +68,7 @@ export const HEADLINE_EXPERIMENT: AbExperiment = {
   enabled: true,
 
   subheadline:
-    "Dołącz do programu mentoringowego dla właścicieli studiów treningu personalnego.",
+    "Stań się niezależnym przedsiębiorcą. Naucz się gotowego modelu wdrożenia od A do Z, aby zarabiać 20–50 tys. miesięcznie przy 50–80% marży, pracując 5 godzin tygodniowo.",
     variants: [
     {
         id: "control",
