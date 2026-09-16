@@ -74,14 +74,14 @@ export interface Attribution {
 
 /** Field length caps — protects GHL/Meta from absurd or hostile query strings. */
 const MAX_LEN: Record<string, number> = {
-  fbclid: 512,
-  gclid: 512,
-  msclkid: 512,
-  ttclid: 512,
-  twclid: 512,
+  fbclid: 1000,
+  gclid: 1000,
+  msclkid: 1000,
+  ttclid: 1000,
+  twclid: 1000,
   li_fat_id: 255,
   fbp: 255,
-  fbc: 600,
+  fbc: 1000,
   landing_url: 1024,
   first_landing_url: 1024,
   referrer: 1024,
@@ -90,13 +90,75 @@ const MAX_LEN: Record<string, number> = {
 
 const DEFAULT_MAX_LEN = 255;
 
-/** Strips control characters, trims, and caps length. Returns undefined when empty. */
-export function sanitizeAttrValue(value: unknown, maxLen = DEFAULT_MAX_LEN): string | undefined {
+/**
+ * Identifiers that must be dropped rather than truncated when oversized.
+ *
+ * Slicing a click ID does not shorten it, it corrupts it: the result is a
+ * different identifier that Meta reports as "Server sending modified fbclid
+ * value in fbc parameter", and the conversion stops matching to its click.
+ * Dropping is the safer failure — the event still matches on hashed email and
+ * phone, and nothing malformed reaches Meta.
+ */
+const NEVER_TRUNCATE = new Set<string>([
+  "fbc",
+  "fbp",
+  "fbclid",
+  "gclid",
+  "msclkid",
+  "ttclid",
+  "twclid",
+  "li_fat_id",
+]);
+
+/**
+ * Strips control characters, trims, and caps length. Returns undefined when
+ * empty — or, when `onOverflow` is "drop", when the value exceeds `maxLen`.
+ */
+export function sanitizeAttrValue(
+  value: unknown,
+  maxLen = DEFAULT_MAX_LEN,
+  onOverflow: "truncate" | "drop" = "truncate"
+): string | undefined {
   if (typeof value !== "string") return undefined;
   // eslint-disable-next-line no-control-regex
   const cleaned = value.replace(/[\u0000-\u001F\u007F]/g, "").trim();
   if (!cleaned) return undefined;
-  return cleaned.slice(0, maxLen);
+  if (cleaned.length <= maxLen) return cleaned;
+  return onOverflow === "drop" ? undefined : cleaned.slice(0, maxLen);
+}
+
+/** Applies the right cap and the right overflow rule for a given key. */
+function sanitizeForKey(value: unknown, key: string): string | undefined {
+  return sanitizeAttrValue(
+    value,
+    MAX_LEN[key] ?? DEFAULT_MAX_LEN,
+    NEVER_TRUNCATE.has(key) ? "drop" : "truncate"
+  );
+}
+
+/**
+ * Reads a query parameter without URLSearchParams' "+"-to-space substitution.
+ *
+ * URLSearchParams applies form-encoding rules, where "+" means a space. A URL is
+ * not a form: if a click ID contains "+", URLSearchParams hands back a string
+ * with a space in it — a different identifier. Percent escapes are still
+ * decoded, because those are genuine URI escapes.
+ */
+function readRawQueryParam(search: string, key: string): string | undefined {
+  const query = search.startsWith("?") ? search.slice(1) : search;
+  if (!query) return undefined;
+
+  for (const pair of query.split("&")) {
+    const eq = pair.indexOf("=");
+    if ((eq === -1 ? pair : pair.slice(0, eq)) !== key) continue;
+    const raw = eq === -1 ? "" : pair.slice(eq + 1);
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -125,7 +187,7 @@ export function normalizeAttribution(input: unknown): Attribution {
   ];
 
   for (const key of keys) {
-    const value = sanitizeAttrValue(raw[key], MAX_LEN[key] ?? DEFAULT_MAX_LEN);
+    const value = sanitizeForKey(raw[key], key);
     if (value) out[key] = value;
   }
 
@@ -139,14 +201,56 @@ export function normalizeAttribution(input: unknown): Attribution {
 }
 
 /**
- * Meta's documented format for building `fbc` yourself when you have the
- * fbclid but not the _fbc cookie: fb.<subdomain_index>.<creation_time_ms>.<fbclid>
- * subdomain_index is 1 for a standard apex/www domain.
+ * A click older than this is treated as implausible rather than real.
  */
-export function buildFbcFromClickId(fbclid: string, capturedAtIso?: string): string {
-  const parsed = capturedAtIso ? Date.parse(capturedAtIso) : NaN;
-  const timestamp = Number.isFinite(parsed) ? parsed : Date.now();
-  return `fb.1.${timestamp}.${fbclid}`;
+const MAX_CLICK_AGE_MS = 400 * 24 * 60 * 60 * 1000;
+
+/**
+ * Is this a well-formed `fbc` that Meta will accept?
+ *
+ * Deliberately permissive about the click ID's character set — being strict
+ * there would discard valid values and cost attribution. It rejects only what is
+ * definitely broken: the wrong shape, whitespace inside the click ID (the
+ * signature of a "+" that got decoded into a space), or a timestamp in the
+ * future or implausibly far past.
+ */
+export function isValidFbc(value: string | undefined | null): value is string {
+  if (!value) return false;
+
+  const parts = value.split(".");
+  if (parts.length !== 4) return false;
+
+  const [prefix, index, ms, clickId] = parts;
+  if (prefix !== "fb") return false;
+  if (!/^\d+$/.test(index)) return false;
+  if (!/^\d{10,16}$/.test(ms)) return false;
+  if (!clickId || /\s/.test(clickId)) return false;
+
+  const timestamp = Number(ms);
+  const now = Date.now();
+  return timestamp <= now + 60_000 && timestamp > now - MAX_CLICK_AGE_MS;
+}
+
+/**
+ * Meta's format for building `fbc` yourself when you have the fbclid but not the
+ * _fbc cookie: fb.<subdomain_index>.<click_time_ms>.<fbclid>
+ *
+ * The click time is REQUIRED, and that is the point. The timestamp must be when
+ * the click actually happened. Stamping it with "now" — which is what this did
+ * whenever `captured_at` was missing — produces a value Meta reports as a
+ * modified fbclid, and the conversion stops matching to its click. Returning
+ * undefined is the better failure: no fbc still matches on hashed email and
+ * phone, whereas a wrong fbc poisons the match AND flags the whole dataset.
+ *
+ * subdomain_index 1 is correct while _fbc is set on the registrable domain
+ * (dochodowestudio.com), which is what Meta's pixel does by default.
+ */
+export function buildFbcFromClickId(fbclid: string, clickTimeIso?: string): string | undefined {
+  const clickTime = clickTimeIso ? Date.parse(clickTimeIso) : NaN;
+  if (!Number.isFinite(clickTime)) return undefined;
+
+  const candidate = `fb.1.${clickTime}.${fbclid.trim()}`;
+  return isValidFbc(candidate) ? candidate : undefined;
 }
 
 /**
@@ -247,8 +351,10 @@ export function captureAttributionFromUrl(): Attribution | null {
     }
   }
 
+  // Read click IDs off the raw query string, NOT via params.get(): see
+  // readRawQueryParam for why URLSearchParams would corrupt a "+" in an fbclid.
   for (const key of CLICK_ID_KEYS) {
-    const value = sanitizeAttrValue(params.get(key), MAX_LEN[key] ?? DEFAULT_MAX_LEN);
+    const value = sanitizeForKey(readRawQueryParam(window.location.search, key), key);
     if (value) {
       incoming[key] = value;
       hasAny = true;
@@ -313,9 +419,11 @@ export function resolveAttribution(): Attribution {
     ...cookies,
   };
 
-  // If Meta hasn't set _fbc yet but we have the click ID, build it ourselves.
+  // If Meta hasn't set _fbc yet but we have the click ID, build it ourselves —
+  // only when captured_at gives us the real click time. See buildFbcFromClickId.
   if (!merged.fbc && merged.fbclid) {
-    merged.fbc = buildFbcFromClickId(merged.fbclid, merged.captured_at);
+    const built = buildFbcFromClickId(merged.fbclid, merged.captured_at);
+    if (built) merged.fbc = built;
   }
 
   if (!merged.referrer && isBrowser()) {

@@ -18,7 +18,7 @@
 
 import crypto from "crypto";
 
-import { buildFbcFromClickId, hasPaidClick, type Attribution } from "./attribution";
+import { buildFbcFromClickId, hasPaidClick, isValidFbc, type Attribution } from "./attribution";
 import { describeError, fetchWithRetry, safeJson, safeText } from "./http";
 
 /* -------------------------------------------------------------------------- *
@@ -187,10 +187,22 @@ function normZip(value?: string): string | undefined {
 function buildUserData(args: SendMetaEventArgs): Record<string, unknown> {
   const { user = {}, attribution = {} } = args;
 
-  const fbc =
+  // Prefer a real _fbc; only synthesise one when the true click time is known.
+  // Whatever we end up with is validated before it goes out: Meta reports a
+  // malformed fbc as "Server sending modified fbclid value in fbc parameter" and
+  // stops matching the conversion to its click, which is strictly worse than
+  // sending no fbc at all and letting hashed email/phone do the matching.
+  const candidateFbc =
     args.fbc ||
     attribution.fbc ||
     (attribution.fbclid ? buildFbcFromClickId(attribution.fbclid, attribution.captured_at) : undefined);
+
+  const fbc = isValidFbc(candidateFbc) ? candidateFbc : undefined;
+  if (candidateFbc && !fbc) {
+    console.warn(
+      `[meta-capi] ${args.eventName}: dropped malformed fbc ${JSON.stringify(candidateFbc.slice(0, 80))} — sending without it`
+    );
+  }
 
   const fbp = args.fbp || attribution.fbp;
 
