@@ -82,14 +82,14 @@ export const HEADLINE_EXPERIMENT: AbExperiment = {
         label: "B — Sprzedaż pakietów",
         weight: 33,
         headline:
-          "Naucz się, jak regularnie sprzedawać programy treningowe za 5 000+ zł",
+          "Gotowy model studia fitness A-Z, 20–50 tys. zł miesięcznie zysku",
       },
       {
         id: "c",
         label: "C — Zatrudnianie i wolność",
         weight: 33,
         headline:
-          "Naucz się, jak zatrudnić trenerów, którzy sprzedają i prowadzą studio za Ciebie",
+          "Naucz się, jak zbudować procesy, sprzedaż i zespół, które generują 20–50 tys. zł miesięcznie bez Ciebie na sali",
       },
     ]
 };
