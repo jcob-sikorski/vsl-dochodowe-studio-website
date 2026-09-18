@@ -1,7 +1,8 @@
 /* -------------------------------------------------------------------------- *
  * src/app/api/cron/meta-spend/route.ts
  *
- * Pulls yesterday's spend per ad from the Meta Marketing API into `ad_spend`.
+ * Pulls yesterday's spend per ad from the Meta Marketing API into `ad_spend`,
+ * scoped to the campaigns listed in META_CAMPAIGN_IDS.
  * Without this table, every cost-per-X metric is unanswerable.
  *
  * Scheduled by vercel.json at 04:00 UTC daily. Also callable by hand to
@@ -27,6 +28,15 @@ const GRAPH_VERSION = process.env.META_GRAPH_API_VERSION?.trim() || "v21.0";
 const AD_ACCOUNT_ID = (process.env.META_AD_ACCOUNT_ID || "").trim();
 const ACCESS_TOKEN = (process.env.META_MARKETING_API_TOKEN || process.env.META_CAPI_ACCESS_TOKEN || "").trim();
 const CRON_SECRET = (process.env.CRON_SECRET || "").trim();
+
+/**
+ * Restrict the pull to specific campaigns. Comma-separated campaign IDs.
+ * Empty = whole ad account (the old behaviour).
+ */
+const CAMPAIGN_IDS = (process.env.META_CAMPAIGN_IDS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 /** Meta keeps revising recent days; re-pull a short window every night. */
 const DEFAULT_LOOKBACK_DAYS = 3;
@@ -75,6 +85,21 @@ export async function GET(request: Request) {
   const supabase = getSupabase();
   if (!supabase) return json({ ok: false, error: "supabase_not_configured" }, 503);
 
+  // One-shot cleanup of rows banked before the campaign filter existed:
+  //   curl ".../api/cron/meta-spend?prune=1&days=90" -H "Authorization: Bearer $CRON_SECRET"
+  if (url.searchParams.get("prune") === "1" && CAMPAIGN_IDS.length) {
+    const { error: pruneError, count } = await supabase
+      .from("ad_spend")
+      .delete({ count: "exact" })
+      .or(`campaign_id.is.null,campaign_id.not.in.(${CAMPAIGN_IDS.join(",")})`);
+
+    if (pruneError) {
+      console.error(`[spend] prune failed: ${pruneError.message}`);
+      return json({ ok: false, error: pruneError.message }, 502);
+    }
+    console.info(`[spend] pruned ${count ?? 0} out-of-scope rows`);
+  }
+
   const days = clamp(Number(url.searchParams.get("days")) || DEFAULT_LOOKBACK_DAYS, 1, MAX_LOOKBACK_DAYS);
   const until = new Date();
   const since = new Date(until.getTime() - (days - 1) * 86_400_000);
@@ -89,6 +114,15 @@ export async function GET(request: Request) {
     limit: String(PAGE_LIMIT),
     access_token: ACCESS_TOKEN,
   });
+
+  // Ask Meta for this campaign only — cheaper than paging the account and
+  // throwing most of it away, and it keeps `ad_spend` free of foreign rows.
+  if (CAMPAIGN_IDS.length) {
+    params.set(
+      "filtering",
+      JSON.stringify([{ field: "campaign.id", operator: "IN", value: CAMPAIGN_IDS }])
+    );
+  }
 
   let next: string | null = `https://graph.facebook.com/${GRAPH_VERSION}/${account}/insights?${params}`;
   const rows: InsightRow[] = [];
@@ -120,7 +154,7 @@ export async function GET(request: Request) {
   }
 
   const records = rows
-    .filter((r) => r.ad_id && r.date_start)
+    .filter((r) => r.ad_id && r.date_start && inScope(r.campaign_id))
     .map((r) => ({
       date: r.date_start!,
       ad_id: r.ad_id!,
@@ -156,7 +190,7 @@ export async function GET(request: Request) {
   const total = records.reduce((sum, r) => sum + r.spend, 0);
   console.info(
     `[spend] ${isoDate(since)}..${isoDate(until)} rows=${written} spend=${total.toFixed(2)} ` +
-      `pages=${pages} ${Date.now() - startedAt}ms`
+      `pages=${pages} campaigns=${CAMPAIGN_IDS.join(",") || "all"} ${Date.now() - startedAt}ms`
   );
 
   return json({
@@ -166,10 +200,17 @@ export async function GET(request: Request) {
     to: isoDate(until),
     rows: written,
     spend: Number(total.toFixed(2)),
+    campaigns: CAMPAIGN_IDS.length ? CAMPAIGN_IDS : "all",
   });
 }
 
 /* -------------------------------------------------------------------------- */
+
+/** No allowlist configured = everything is in scope (previous behaviour). */
+function inScope(campaignId?: string | null): boolean {
+  if (CAMPAIGN_IDS.length === 0) return true;
+  return !!campaignId && CAMPAIGN_IDS.includes(campaignId);
+}
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
