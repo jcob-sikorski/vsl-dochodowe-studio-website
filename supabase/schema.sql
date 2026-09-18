@@ -8,6 +8,10 @@
 --    leads      — one row per person, one timestamp column per funnel stage
 --    ad_spend   — one row per ad per day, pulled from the Meta Marketing API
 --
+--  Funnel stages are cumulative when counted: booked implies qualified,
+--  showed implies booked, won implies showed. GHL only ever stamps the stage
+--  it moved a card to, so the earlier columns stay null on the row.
+--
 --  Everything else (show rate, cost per qualified lead, cost per show, cost
 --  per purchase, ROAS) is a join between them. Nothing is precomputed, so a
 --  changed definition never requires a backfill.
@@ -283,9 +287,21 @@ as $$
     select
       coalesce(x.ad_id, '(no ad id)') as ad_id,
       count(*)::bigint                   as leads,
-      count(x.qualified_at)::bigint      as qualified,
-      count(x.booked_at)::bigint         as booked,
-      count(x.showed_at)::bigint         as showed,
+      -- Stages are cumulative: reaching one means every earlier one was passed,
+      -- whether or not a webhook ever stamped it. Counting the columns
+      -- literally made "qualified" read 0 next to 2 booked calls.
+      count(*) filter (where x.qualified_at is not null
+                          or x.booked_at   is not null
+                          or x.showed_at   is not null
+                          or x.no_show_at  is not null
+                          or x.won_at      is not null)::bigint as qualified,
+      count(*) filter (where x.booked_at   is not null
+                          or x.showed_at   is not null
+                          or x.no_show_at  is not null
+                          or x.won_at      is not null)::bigint as booked,
+      count(*) filter (where x.showed_at   is not null
+                          or x.won_at      is not null)::bigint as showed,
+      -- A branch, not a level: never rolled up from anything.
       count(x.no_show_at)::bigint        as no_shows,
       count(x.won_at)::bigint            as won,
       coalesce(sum(x.revenue) filter (where x.won_at is not null), 0)::numeric as revenue
@@ -461,9 +477,18 @@ as $$
       x.ab_experiment_id as experiment_id,
       x.ab_variant_id    as variant_id,
       count(*)::bigint              as leads,
-      count(x.qualified_at)::bigint as qualified,
-      count(x.booked_at)::bigint    as booked,
-      count(x.showed_at)::bigint    as showed,
+      -- Cumulative, same rule as funnel_report.
+      count(*) filter (where x.qualified_at is not null
+                          or x.booked_at   is not null
+                          or x.showed_at   is not null
+                          or x.no_show_at  is not null
+                          or x.won_at      is not null)::bigint as qualified,
+      count(*) filter (where x.booked_at   is not null
+                          or x.showed_at   is not null
+                          or x.no_show_at  is not null
+                          or x.won_at      is not null)::bigint as booked,
+      count(*) filter (where x.showed_at   is not null
+                          or x.won_at      is not null)::bigint as showed,
       count(x.won_at)::bigint       as won,
       coalesce(sum(x.revenue) filter (where x.won_at is not null), 0)::numeric as revenue
     from public.leads x
