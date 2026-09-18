@@ -1,6 +1,6 @@
 import React from "react";
 
-const PLAYBOOK_URL = "https://dochodowestudio.pl/playbook.pdf"; // TODO: podmień na docelowy link do PDF
+const PLAYBOOK_URL = "https://drive.google.com/file/d/1HfpuFoPEpsr2ijQ5ZVWE297gUL7SBnoD/view?usp=sharing"; // TODO: podmień na docelowy link do PDF
 
 const PLAYBOOK_HIGHLIGHTS: string[] = [
   "Ile realnie kosztują złe decyzje, zanim podpiszesz umowę najmu",
