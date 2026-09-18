@@ -64,7 +64,7 @@ export interface AbExperiment {
  * ========================================================================== */
 
 export const HEADLINE_EXPERIMENT: AbExperiment = {
-  id: "headline_2026_09",
+  id: "headline_2026_09_v2",
   enabled: true,
 
   subheadline:
