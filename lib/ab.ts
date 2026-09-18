@@ -70,26 +70,26 @@ export const HEADLINE_EXPERIMENT: AbExperiment = {
   subheadline:
     "Stań się niezależnym przedsiębiorcą. Naucz się gotowego modelu wdrożenia od A do Z, aby zarabiać 20–50 tys. miesięcznie przy 50–80% marży, pracując 5 godzin tygodniowo.",
     variants: [
-    {
+      {
         id: "control",
-        label: "A — Zysk miesięczny (baza)",
+        label: "A — Wynik finansowy",
         weight: 34,
         headline:
-          "Naucz się, jak zbudować studio, które generuje 20–50 tys. zł miesięcznie",
+          "Zbuduj studio treningowe, które generuje 20–50 tys. zł miesięcznie",
       },
       {
         id: "b",
-        label: "B — Sprzedaż pakietów",
+        label: "B — Gotowy model A–Z",
         weight: 33,
         headline:
-          "Gotowy model studia fitness A-Z, 20–50 tys. zł miesięcznie zysku",
+          "Nie buduj studia metodą prób i błędów. Wdróż gotowy model od A do Z do 20–50 tys. zł miesięcznie",
       },
       {
         id: "c",
-        label: "C — Zatrudnianie i wolność",
+        label: "C — Studio bez Ciebie na sali",
         weight: 33,
         headline:
-          "Naucz się, jak zbudować procesy, sprzedaż i zespół, które generują 20–50 tys. zł miesięcznie bez Ciebie na sali",
+          "Zbuduj studio, które generuje 20–50 tys. zł miesięcznie dzięki procesom, sprzedaży i zespołowi — bez Ciebie na sali",
       },
     ]
 };
