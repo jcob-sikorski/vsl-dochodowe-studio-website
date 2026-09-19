@@ -6,6 +6,7 @@
  * Events this app sends:
  *   - "SubmitApplication"  form submitted      (/api/register, server-side)
  *   - "PageView"           route change        (pixel component -> server action)
+ *   - "Qualified"          setter qualified    (/api/conversion, GHL webhook)
  *   - "Lead"               call booked         (/api/conversion, GHL webhook)
  *   - "Purchase"           deal won            (/api/conversion, GHL webhook)
  *
@@ -57,12 +58,15 @@ const ONLY_PAID_TRAFFIC =
  *
  *   SubmitApplication - form submitted (fired by /api/register)
  *   PageView          - route change (fired by the pixel component)
+ *   Qualified         - setter vetted the lead (CUSTOM event, not one of Meta's
+ *                       17 standard events; Meta accepts it, but an ad set can
+ *                       only optimise toward it via a custom conversion)
  *   Lead              - call booked (NOT showed; see META_EVENT_FOR_STAGE)
  *   Purchase          - deal won              (fired by /api/conversion)
  *
  * Anything not on this list is refused at runtime.
  */
-export const ALLOWED_EVENTS = ["SubmitApplication", "PageView", "Lead", "Purchase"] as const;
+export const ALLOWED_EVENTS = ["SubmitApplication", "PageView", "Qualified", "Lead", "Purchase"] as const;
 export type MetaEventName = (typeof ALLOWED_EVENTS)[number];
 
 /** Meta's accepted action_source values. */
@@ -411,6 +415,18 @@ export function sendPageView(args: Omit<SendMetaEventArgs, "eventName">): Promis
  */
 export function sendLead(args: Omit<SendMetaEventArgs, "eventName">): Promise<MetaResult> {
   return sendMetaEvent({ actionSource: "website", ...args, eventName: "Lead" });
+}
+
+/**
+ * Offline conversion: the setter qualified the lead.
+ *
+ * A CUSTOM event name — deliberately. It cannot reuse "Lead", which `booked`
+ * already sends: the event_id is derived from (event, contact, reference), so
+ * the same opportunity would produce an identical id at both stages and Meta
+ * would drop the second as a duplicate. See sendLead on action_source.
+ */
+export function sendQualified(args: Omit<SendMetaEventArgs, "eventName">): Promise<MetaResult> {
+  return sendMetaEvent({ actionSource: "website", ...args, eventName: "Qualified" });
 }
 
 /** Offline conversion: the deal closed. See sendLead on action_source. */

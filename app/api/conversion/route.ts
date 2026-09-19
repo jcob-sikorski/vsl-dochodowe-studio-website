@@ -8,10 +8,11 @@
  *      makes show rate, cost per qualified lead and cost per purchase
  *      computable — Meta knows spend but not your pipeline.
  *
- *   2. SOMETIMES reports a conversion to Meta. Only `booked` and `won` map to a
- *      Meta event; `qualified`, `showed`, `no_show`, `lost` and `disqualified`
- *      are recorded locally and stay out of the pixel. Sending Meta a signal for
- *      every pipeline nudge would just add noise to optimisation.
+ *   2. SOMETIMES reports a conversion to Meta. Only `qualified`, `booked` and
+ *      `won` map to a Meta event; `showed`, `no_show`, `lost` and
+ *      `disqualified` are recorded locally and stay out of the pixel. Sending
+ *      Meta a signal for every pipeline nudge would just add noise to
+ *      optimisation.
  *
  * Auth: shared secret, required. See CONVERSION_WEBHOOK_SECRET in .env.example.
  *
@@ -94,15 +95,19 @@ const STAGE_ALIASES: Record<string, LeadStage> = {
 };
 
 /**
- * Only these two stages are worth a Meta conversion. Everything else is
+ * Only these three stages are worth a Meta conversion. Everything else is
  * pipeline bookkeeping and stays local.
  *
- * Note `showed` deliberately maps to nothing: it used to send `Lead`, which
- * collides with `booked` on the same opportunity — identical event name and
- * reference produce an identical event_id, so Meta would discard it as a
- * duplicate and the show would silently vanish. Show rate lives in Supabase.
+ * Every stage here MUST map to a distinct event name. The event_id is derived
+ * from (event, contact, reference), so two stages sharing a name would produce
+ * an identical id for the same opportunity and Meta would discard the second as
+ * a duplicate. That is why `qualified` sends its own custom "Qualified" rather
+ * than reusing "Lead", and why `showed` deliberately maps to nothing — it used
+ * to send `Lead` and collided with `booked`, silently vanishing. Show rate
+ * lives in Supabase.
  */
 const META_EVENT_FOR_STAGE: Partial<Record<LeadStage, MetaEventName>> = {
+  qualified: "Qualified",
   booked: "Lead",
   won: "Purchase",
 };
@@ -407,6 +412,7 @@ export async function GET(request: Request) {
 function resolveMetaEvent(stage: LeadStage, override: string): MetaEventName | null {
   const normalized = override.trim().toLowerCase();
   if (normalized === "none" || normalized === "off" || normalized === "false") return null;
+  if (normalized === "qualified") return "Qualified";
   if (normalized === "lead") return "Lead";
   if (normalized === "purchase") return "Purchase";
   return META_EVENT_FOR_STAGE[stage] ?? null;
