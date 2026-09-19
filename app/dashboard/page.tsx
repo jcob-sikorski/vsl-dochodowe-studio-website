@@ -8,6 +8,7 @@
  * -------------------------------------------------------------------------- */
 
 import { HEADLINE_EXPERIMENT, getVariant } from "@/lib/ab";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { getSupabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -204,18 +205,20 @@ export default async function DashboardPage({
 
       {/* ---- cost per stage ------------------------------------------ */}
       <h2 className="h2">Cost per stage</h2>
-      <section className="tiles" aria-label="Cost per stage">
-        <Tile label="Per lead" value={cost(totals.spend, totals.leads)} note={`${int.format(totals.leads)} leads`} />
-        <Tile label="Per for qualification" value={cost(totals.spend, totals.forQualification)} note={`${int.format(totals.forQualification)} for qualification`} />
-        <Tile label="Per qualified" value={cost(totals.spend, totals.qualified)} note={`${int.format(totals.qualified)} qualified`} />
-        <Tile label="Per booked call" value={cost(totals.spend, totals.booked)} note={`${int.format(totals.booked)} booked`} />
-        <Tile label="Per show" value={cost(totals.spend, totals.showed)} note={`${int.format(totals.showed)} showed`} />
-        <Tile label="Per purchase" value={cost(totals.spend, totals.won)} note={`${int.format(totals.won)} won`} />
+      <section className="tiles dense" aria-label="Cost per stage">
+        <Tile size="sm" label="Per lead" value={cost(totals.spend, totals.leads)} note={`${int.format(totals.leads)} leads`} />
+        <Tile size="sm" label="Per for qualification" value={cost(totals.spend, totals.forQualification)} note={`${int.format(totals.forQualification)} for qualification`} />
+        <Tile size="sm" label="Per qualified" value={cost(totals.spend, totals.qualified)} note={`${int.format(totals.qualified)} qualified`} />
+        <Tile size="sm" label="Per booked call" value={cost(totals.spend, totals.booked)} note={`${int.format(totals.booked)} booked`} />
+        <Tile size="sm" label="Per show" value={cost(totals.spend, totals.showed)} note={`${int.format(totals.showed)} showed`} />
+        <Tile size="sm" label="Per purchase" value={cost(totals.spend, totals.won)} note={`${int.format(totals.won)} won`} />
       </section>
 
       {/* ---- funnel -------------------------------------------------- */}
       <h2 className="h2">Funnel</h2>
-      <Funnel steps={funnel} />
+      <div className="card">
+        <Funnel steps={funnel} />
+      </div>
 
       {/* ---- headline split test ------------------------------------- */}
       <h2 className="h2">Headline test · {HEADLINE_EXPERIMENT.id}</h2>
@@ -475,17 +478,30 @@ function Tile({
   value,
   note,
   tone,
+  size,
 }: {
   label: string;
   value: string;
   note?: string;
   tone?: "good" | "warning" | "critical";
+  /** "sm" is the secondary row — subordinate to the headline KPIs. */
+  size?: "sm";
 }) {
+  const empty = value === "—";
+
   return (
-    <div className="tile">
+    <div className={`tile${size === "sm" ? " tile-sm" : ""}${tone ? ` has-${tone}` : ""}`}>
       <div className="tile-label">{label}</div>
-      <div className={`tile-value${tone ? ` ${tone}` : ""}`}>{value}</div>
-      {note && <div className="tile-note">{note}</div>}
+      <div className={`tile-value${tone ? ` ${tone}` : ""}${empty ? " empty" : ""}`}>{value}</div>
+      {note &&
+        (tone ? (
+          <span className={`badge ${tone}`}>
+            <i aria-hidden="true" />
+            {note}
+          </span>
+        ) : (
+          <div className="tile-note">{note}</div>
+        ))}
     </div>
   );
 }
@@ -507,9 +523,18 @@ function Funnel({ steps }: { steps: { label: string; value: number }[] }) {
 
         return (
           <div className="funnel-row" key={step.label}>
-            <div className="funnel-label">{step.label}</div>
+            <div className="funnel-label">
+              <span className="funnel-idx">{i + 1}</span>
+              {step.label}
+            </div>
             <div className="funnel-track">
-              <div className={`funnel-bar step-${i + 1}`} style={{ width: `${width}%` }} />
+              <div
+                className={`funnel-bar step-${i + 1}`}
+                style={{ width: `${width}%` }}
+                title={`${step.label}: ${int.format(step.value)}${
+                  conversion === undefined ? "" : ` · ${pct(conversion)} of ${steps[i - 1].label.toLowerCase()}`
+                }`}
+              />
               <span className="funnel-value">{int.format(step.value)}</span>
             </div>
             <div className="funnel-rate">
@@ -549,6 +574,15 @@ function Shell({
   return (
     <main className="viz-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      {/* Stamps the stored theme before first paint — without this the page
+          flashes the OS theme for a frame before the toggle's effect runs. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            "(function(){try{var t=localStorage.getItem('ds-theme');" +
+            "if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})()",
+        }}
+      />
 
       <header className="head">
         <div>
@@ -570,6 +604,7 @@ function Shell({
             <a href={`?range=${range}&traffic=paid`} className={`chip${traffic === "paid" ? " on" : ""}`}>Paid</a>
             <a href={`?range=${range}&traffic=all`} className={`chip${traffic === "all" ? " on" : ""}`}>All</a>
           </div>
+          <ThemeToggle />
         </nav>
       </header>
 
@@ -675,139 +710,374 @@ function confidenceLabel(
  * -------------------------------------------------------------------------- */
 
 const CSS = `
+/* --------------------------------------------------------------------------
+ * Dark analytics console. Scoped to .viz-root so nothing leaks into the
+ * marketing pages.
+ *
+ * Dark is FORCED here, not OS-dependent: this is an operator's tool behind
+ * auth, and a console that flips to white in daylight is not the same product.
+ *
+ * Chrome recedes to near-invisible hairlines; the numbers carry the page. Cells
+ * are divided by 1px gaps over a border-coloured grid rather than floated as
+ * separate cards — one instrument panel, not a tray of boxes.
+ *
+ * DATA colour is unchanged and still validated: the funnel is one ordinal hue
+ * light→dark, no step darker than #184f95 (clears the 2:1 ordinal floor against
+ * this surface), and the status palette stays reserved, always paired with a
+ * dot AND words so colour never carries meaning alone.
+ * -------------------------------------------------------------------------- */
+
 .viz-root {
   color-scheme: light;
-  --surface-1: #fcfcfb;
-  --surface-2: #f4f3f0;
-  --border: #e3e1dc;
-  --text-primary: #0b0b0b;
+
+  --plane:          #fafaf9;
+  --panel:          #ffffff;
+  --panel-2:        #f5f5f3;
+  --panel-hover:    #fafaf9;
+  --border:         rgba(11, 11, 11, 0.09);
+  --border-strong:  rgba(11, 11, 11, 0.15);
+  --text-primary:   #0b0b0b;
   --text-secondary: #52514e;
-  --text-muted: #85837c;
-  --good: #0ca30c;
-  --warning: #b07400;
+  --text-muted:     #85837c;
+  --empty:          #c9c7c1;
+  --chip-on:        #ffffff;
+  --chip-on-edge:   rgba(11, 11, 11, 0.06);
+  --badge-bg:       rgba(11, 11, 11, 0.02);
+  --idx-bg:         rgba(11, 11, 11, 0.03);
+  --wash:           rgba(90, 120, 220, 0.05);
+  --good:     #0ca30c;
+  --warning:  #b07400;
   --critical: #d03b3b;
   --step-1: #86b6ef;
   --step-2: #5598e7;
   --step-3: #3987e5;
   --step-4: #2a78d6;
   --step-5: #1c5cab;
+  --step-6: #184f95;
+
   --accent: #ea580c;
 
-  background: var(--surface-1);
+  --radius:    10px;
+  --radius-sm: 7px;
+
+  position: relative;
+  background: var(--plane);
   color: var(--text-primary);
   min-height: 100vh;
-  padding: 24px 16px 64px;
-  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: 0 24px 96px;
+  font: 13.5px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* OS preference — yields to an explicit stamp in either direction. */
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .viz-root {
     color-scheme: dark;
-    --surface-1: #1a1a19;
-    --surface-2: #232322;
-    --border: #383835;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #8f8e85;
-    --good: #0ca30c;
-    --warning: #fab219;
-    --critical: #e06666;
-    --step-1: #184f95;
-    --step-2: #256abf;
-    --step-3: #2a78d6;
-    --step-4: #3987e5;
-    --step-5: #5598e7;
+  --plane:          #08090a;
+  --panel:          #0f1011;
+  --panel-2:        #151617;
+  --panel-hover:    #141516;
+  --border:         rgba(255, 255, 255, 0.07);
+  --border-strong:  rgba(255, 255, 255, 0.13);
+  --text-primary:   #f2f3f4;
+  --text-secondary: #a1a6ad;
+  --text-muted:     #6b7078;
+  --empty:          #35383c;
+  --chip-on:        #232427;
+  --chip-on-edge:   rgba(255, 255, 255, 0.06);
+  --badge-bg:       rgba(255, 255, 255, 0.03);
+  --idx-bg:         rgba(255, 255, 255, 0.04);
+  --wash:           rgba(90, 120, 220, 0.07);
+  --good:     #0ca30c;
+  --warning:  #fab219;
+  --critical: #e06666;
+  --step-1: #184f95;
+  --step-2: #1c5cab;
+  --step-3: #256abf;
+  --step-4: #2a78d6;
+  --step-5: #3987e5;
+  --step-6: #5598e7;
   }
 }
+
+/* The toggle's explicit choice — wins over the OS. */
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --plane:          #08090a;
+  --panel:          #0f1011;
+  --panel-2:        #151617;
+  --panel-hover:    #141516;
+  --border:         rgba(255, 255, 255, 0.07);
+  --border-strong:  rgba(255, 255, 255, 0.13);
+  --text-primary:   #f2f3f4;
+  --text-secondary: #a1a6ad;
+  --text-muted:     #6b7078;
+  --empty:          #35383c;
+  --chip-on:        #232427;
+  --chip-on-edge:   rgba(255, 255, 255, 0.06);
+  --badge-bg:       rgba(255, 255, 255, 0.03);
+  --idx-bg:         rgba(255, 255, 255, 0.04);
+  --wash:           rgba(90, 120, 220, 0.07);
+  --good:     #0ca30c;
+  --warning:  #fab219;
+  --critical: #e06666;
+  --step-1: #184f95;
+  --step-2: #1c5cab;
+  --step-3: #256abf;
+  --step-4: #2a78d6;
+  --step-5: #3987e5;
+  --step-6: #5598e7;
+}
+
+/* A single cool wash at the top edge — the only decoration on the page. */
+.viz-root::before {
+  content: "";
+  position: absolute; inset: 0 0 auto 0; height: 380px;
+  background: radial-gradient(58% 100% at 50% 0%, var(--wash), transparent 72%);
+  pointer-events: none;
+}
+
 .viz-root * { box-sizing: border-box; }
-.viz-root > * { max-width: 1200px; margin-inline: auto; }
+.viz-root > * { position: relative; max-width: 1280px; margin-inline: auto; }
+.viz-root :focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
 
+/* ---- app bar ----------------------------------------------------------- */
 .head {
-  display: flex; flex-wrap: wrap; gap: 16px;
-  align-items: flex-end; justify-content: space-between;
-  margin-bottom: 28px;
+  display: flex; flex-wrap: wrap; gap: 18px;
+  align-items: center; justify-content: space-between;
+  padding: 22px 0 20px;
+  margin-bottom: 26px;
+  border-bottom: 1px solid var(--border);
 }
-.h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
-.h2 { margin: 32px 0 12px; font-size: 13px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.06em; color: var(--text-muted); }
-.sub { margin: 4px 0 0; font-size: 13px; color: var(--text-secondary); }
+.h1 {
+  margin: 0; font-size: 15px; font-weight: 600;
+  letter-spacing: -0.005em; color: var(--text-primary);
+}
+.sub {
+  margin: 3px 0 0; font-size: 12px; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.h2 {
+  display: flex; align-items: center; gap: 10px;
+  margin: 34px 0 10px; font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.11em;
+  color: var(--text-muted);
+}
 
+/* ---- segmented controls ------------------------------------------------ */
 .filters { display: flex; gap: 8px; flex-wrap: wrap; }
-.seg { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg {
+  display: flex; gap: 1px; padding: 2px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
 .chip {
-  padding: 6px 12px; font-size: 13px; color: var(--text-secondary);
-  text-decoration: none; background: var(--surface-1);
-  border-right: 1px solid var(--border);
+  padding: 4px 11px; font-size: 12px; font-weight: 500;
+  color: var(--text-muted); text-decoration: none;
+  border-radius: 5px;
+  transition: background 110ms ease, color 110ms ease;
 }
-.seg .chip:last-child { border-right: 0; }
-.chip:hover { background: var(--surface-2); color: var(--text-primary); }
-.chip.on { background: var(--accent); color: #fff; }
+.chip:hover { color: var(--text-primary); background: var(--panel-2); }
 
-.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-.tile {
-  background: var(--surface-2); border: 1px solid var(--border);
-  border-radius: 10px; padding: 14px 16px;
+.themebtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; flex: none; padding: 0;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 110ms ease, color 110ms ease, border-color 110ms ease;
 }
-.tile-label { font-size: 12px; color: var(--text-secondary); }
-.tile-value { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-top: 2px;
-              font-variant-numeric: tabular-nums; }
+.themebtn:hover { background: var(--panel-2); color: var(--text-primary); border-color: var(--border-strong); }
+.themebtn-icon { display: inline-flex; width: 15px; height: 15px; }
+.chip.on {
+  background: var(--chip-on); color: var(--text-primary); font-weight: 550;
+  box-shadow: inset 0 1px 0 var(--chip-on-edge), 0 1px 2px rgba(11, 11, 11, 0.06);
+}
+
+/* ---- the hairline grid: one panel, cells divided by 1px of border ------- */
+.tiles {
+  display: grid; gap: 1px;
+  grid-template-columns: repeat(auto-fit, minmax(186px, 1fr));
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.tiles.dense { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+.tile {
+  position: relative;
+  background: var(--panel);
+  padding: 16px 18px 15px;
+  min-height: 108px;
+  display: flex; flex-direction: column;
+  transition: background 120ms ease;
+}
+.tile:hover { background: var(--panel-hover); }
+.tile-sm { min-height: 94px; padding: 14px 16px 13px; }
+
+.tile-label {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.tile-value {
+  font-size: 30px; font-weight: 600; letter-spacing: -0.035em;
+  line-height: 1.08; margin-top: 10px; color: var(--text-primary);
+}
+.tile-sm .tile-value { font-size: 23px; margin-top: 8px; letter-spacing: -0.03em; }
 .tile-value.good { color: var(--good); }
 .tile-value.warning { color: var(--warning); }
 .tile-value.critical { color: var(--critical); }
-.tile-note { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.tile-value.empty { color: var(--empty); font-weight: 500; letter-spacing: 0; }
+.tile-note {
+  font-size: 11px; color: var(--text-muted);
+  margin-top: auto; padding-top: 10px;
+  font-variant-numeric: tabular-nums;
+}
 
-.funnel { display: flex; flex-direction: column; gap: 6px; }
-.funnel-row { display: grid; grid-template-columns: 92px 1fr 170px; gap: 12px; align-items: center; }
-.funnel-label { font-size: 13px; color: var(--text-secondary); }
-.funnel-track { position: relative; display: flex; align-items: center; gap: 8px; min-height: 26px; }
-.funnel-bar { height: 18px; border-radius: 0 4px 4px 0; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+  margin-top: auto; padding: 2px 8px 2px 6px;
+  font-size: 10.5px; font-weight: 550; line-height: 1.6;
+  border-radius: 999px; border: 1px solid var(--border-strong);
+  background: var(--badge-bg); color: var(--text-secondary);
+}
+.badge i { width: 5px; height: 5px; border-radius: 999px; flex: none; }
+.badge.good i { background: var(--good); }
+.badge.warning i { background: var(--warning); }
+.badge.critical i { background: var(--critical); }
+.badge.good { color: var(--good); }
+.badge.warning { color: var(--warning); }
+.badge.critical { color: var(--critical); }
+
+/* status hairline along the cell's top edge */
+.tile.has-good::before, .tile.has-warning::before, .tile.has-critical::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 1px;
+}
+.tile.has-good::before { background: var(--good); }
+.tile.has-warning::before { background: var(--warning); }
+.tile.has-critical::before { background: var(--critical); }
+
+/* ---- panels ------------------------------------------------------------ */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+
+/* ---- funnel ------------------------------------------------------------ */
+.funnel { display: flex; flex-direction: column; }
+.funnel-row {
+  display: grid; grid-template-columns: 150px 1fr 176px; gap: 18px;
+  align-items: center; padding: 8px 6px;
+  border-bottom: 1px solid var(--border);
+  transition: background 110ms ease;
+}
+.funnel-row:last-child { border-bottom: 0; }
+.funnel-row:hover { background: var(--panel-hover); }
+.funnel-label {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12.5px; font-weight: 500; color: var(--text-secondary);
+}
+.funnel-idx {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; flex: none; border-radius: 5px;
+  background: var(--idx-bg); border: 1px solid var(--border);
+  font-size: 10px; font-weight: 600; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.funnel-track { position: relative; display: flex; align-items: center; gap: 10px; min-height: 24px; }
+.funnel-bar {
+  height: 16px; border-radius: 0 4px 4px 0; min-width: 3px;
+  transition: filter 130ms ease;
+}
+.funnel-row:hover .funnel-bar { filter: brightness(1.14); }
 .funnel-bar.step-1 { background: var(--step-1); }
 .funnel-bar.step-2 { background: var(--step-2); }
 .funnel-bar.step-3 { background: var(--step-3); }
 .funnel-bar.step-4 { background: var(--step-4); }
 .funnel-bar.step-5 { background: var(--step-5); }
-.funnel-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums;
-                color: var(--text-primary); }
-.funnel-rate { font-size: 12px; color: var(--text-muted); text-align: right; }
+.funnel-bar.step-6 { background: var(--step-6); }
+.funnel-value {
+  font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.funnel-rate {
+  font-size: 11.5px; color: var(--text-muted); text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 
-.tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
-.table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 940px; }
+/* ---- tables ------------------------------------------------------------ */
+.tablewrap {
+  overflow-x: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; min-width: 980px; }
 .table th, .table td {
-  padding: 9px 12px; text-align: right; white-space: nowrap;
-  border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums;
+  padding: 9px 14px; text-align: right; white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
 }
 .table thead th {
-  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--text-muted); background: var(--surface-2);
+  position: sticky; top: 0; z-index: 1;
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-muted); background: var(--panel-2);
+  padding-top: 9px; padding-bottom: 9px;
 }
 .table .left { text-align: left; }
 .table tbody th { font-weight: 500; }
-.table tbody tr:hover { background: var(--surface-2); }
-.adname { display: block; color: var(--text-primary); max-width: 260px; overflow: hidden;
-          text-overflow: ellipsis; }
-.table .sub { display: block; font-size: 11px; color: var(--text-muted); margin: 0; }
-.table tfoot th, .table tfoot td { font-weight: 700; border-bottom: 0; background: var(--surface-2); }
-.verdict { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.table tbody tr { transition: background 100ms ease; }
+.table tbody tr:hover { background: var(--panel-hover); }
+.table tbody tr:last-child td, .table tbody tr:last-child th { border-bottom: 0; }
+.adname {
+  display: block; color: var(--text-primary); font-weight: 500;
+  max-width: 300px; overflow: hidden; text-overflow: ellipsis;
+}
+.table .sub { display: block; font-size: 10.5px; color: var(--text-muted); margin: 2px 0 0; }
+.table tfoot th, .table tfoot td {
+  font-weight: 650; border-bottom: 0;
+  border-top: 1px solid var(--border-strong);
+  background: var(--panel-2); color: var(--text-primary);
+}
+.verdict { font-size: 11.5px; font-weight: 600; white-space: nowrap; }
 .verdict.good { color: var(--good); }
 .verdict.warning { color: var(--warning); }
 .verdict.muted { color: var(--text-muted); font-weight: 500; }
 
+.roas { font-weight: 600; }
 .roas.good { color: var(--good); }
 .roas.warning { color: var(--warning); }
 .roas.critical { color: var(--critical); }
 
+/* ---- notice ------------------------------------------------------------ */
 .notice {
-  display: flex; flex-direction: column; gap: 4px;
-  border: 1px solid var(--border); background: var(--surface-2);
-  border-radius: 10px; padding: 16px; color: var(--text-secondary); font-size: 13px;
+  display: flex; flex-direction: column; gap: 5px;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--border-strong);
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 16px 18px; color: var(--text-secondary); font-size: 12.5px;
 }
-.notice strong { color: var(--text-primary); }
-.notice.critical { border-color: var(--critical); }
+.notice strong { color: var(--text-primary); font-weight: 600; }
+.notice.critical { border-left-color: var(--critical); }
 
-.foot { margin-top: 24px; font-size: 12px; color: var(--text-muted); max-width: 70ch; }
+.foot {
+  margin-top: 26px; font-size: 11.5px; line-height: 1.7;
+  color: var(--text-muted); max-width: 74ch;
+}
 
-@media (max-width: 640px) {
-  .funnel-row { grid-template-columns: 74px 1fr; }
-  .funnel-rate { grid-column: 2; text-align: left; }
+@media (max-width: 720px) {
+  .viz-root { padding: 0 14px 72px; }
+  .head { align-items: flex-start; }
+  .funnel-row { grid-template-columns: 124px 1fr; gap: 10px; }
+  .funnel-rate { grid-column: 2; text-align: left; padding-left: 2px; }
 }
 `;
