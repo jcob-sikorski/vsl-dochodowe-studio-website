@@ -26,6 +26,7 @@ interface ReportRow {
   impressions: number | string;
   clicks: number | string;
   leads: number | string;
+  for_qualification: number | string;
   qualified: number | string;
   booked: number | string;
   showed: number | string;
@@ -51,6 +52,7 @@ interface Totals {
   impressions: number;
   clicks: number;
   leads: number;
+  forQualification: number;
   qualified: number;
   booked: number;
   showed: number;
@@ -160,6 +162,7 @@ export default async function DashboardPage({
       impressions: acc.impressions + n(r.impressions),
       clicks: acc.clicks + n(r.clicks),
       leads: acc.leads + n(r.leads),
+      forQualification: acc.forQualification + n(r.for_qualification),
       qualified: acc.qualified + n(r.qualified),
       booked: acc.booked + n(r.booked),
       showed: acc.showed + n(r.showed),
@@ -167,13 +170,17 @@ export default async function DashboardPage({
       won: acc.won + n(r.won),
       revenue: acc.revenue + n(r.revenue),
     }),
-    { spend: 0, impressions: 0, clicks: 0, leads: 0, qualified: 0, booked: 0, showed: 0, noShows: 0, won: 0, revenue: 0 }
+    {
+      spend: 0, impressions: 0, clicks: 0, leads: 0, forQualification: 0,
+      qualified: 0, booked: 0, showed: 0, noShows: 0, won: 0, revenue: 0,
+    }
   );
 
   const roas = rate(totals.revenue, totals.spend);
 
   const funnel = [
     { label: "Leads", value: totals.leads },
+    { label: "For qualification", value: totals.forQualification },
     { label: "Qualified", value: totals.qualified },
     { label: "Booked", value: totals.booked },
     { label: "Showed", value: totals.showed },
@@ -199,6 +206,7 @@ export default async function DashboardPage({
       <h2 className="h2">Cost per stage</h2>
       <section className="tiles" aria-label="Cost per stage">
         <Tile label="Per lead" value={cost(totals.spend, totals.leads)} note={`${int.format(totals.leads)} leads`} />
+        <Tile label="Per for qualification" value={cost(totals.spend, totals.forQualification)} note={`${int.format(totals.forQualification)} for qualification`} />
         <Tile label="Per qualified" value={cost(totals.spend, totals.qualified)} note={`${int.format(totals.qualified)} qualified`} />
         <Tile label="Per booked call" value={cost(totals.spend, totals.booked)} note={`${int.format(totals.booked)} booked`} />
         <Tile label="Per show" value={cost(totals.spend, totals.showed)} note={`${int.format(totals.showed)} showed`} />
@@ -228,6 +236,7 @@ export default async function DashboardPage({
                 <th scope="col" className="left">Ad</th>
                 <th scope="col">Spend</th>
                 <th scope="col">Leads</th>
+                <th scope="col">For&nbsp;qual.</th>
                 <th scope="col">Qual.</th>
                 <th scope="col">Booked</th>
                 <th scope="col">Showed</th>
@@ -258,6 +267,7 @@ export default async function DashboardPage({
                     </th>
                     <td>{pln.format(spend)}</td>
                     <td>{int.format(leads)}</td>
+                    <td>{int.format(n(r.for_qualification))}</td>
                     <td>{int.format(n(r.qualified))}</td>
                     <td>{int.format(booked)}</td>
                     <td>{int.format(showed)}</td>
@@ -285,6 +295,7 @@ export default async function DashboardPage({
                 <th scope="row" className="left">Total</th>
                 <td>{pln.format(totals.spend)}</td>
                 <td>{int.format(totals.leads)}</td>
+                <td>{int.format(totals.forQualification)}</td>
                 <td>{int.format(totals.qualified)}</td>
                 <td>{int.format(totals.booked)}</td>
                 <td>{int.format(totals.showed)}</td>

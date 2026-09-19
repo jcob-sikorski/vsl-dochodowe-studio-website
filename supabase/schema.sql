@@ -53,6 +53,7 @@ create table if not exists public.leads (
 
   -- funnel stages. First occurrence wins; a stage is never un-stamped.
   opted_in_at       timestamptz not null default now(),
+  for_qualification_at timestamptz,
   qualified_at      timestamptz,
   booked_at         timestamptz,
   showed_at         timestamptz,
@@ -71,7 +72,8 @@ create table if not exists public.leads (
   ab_visitor_id     text
 );
 
--- Additive, for projects created before the split test existed.
+-- Additive, for databases created before these columns existed.
+alter table public.leads add column if not exists for_qualification_at timestamptz;
 alter table public.leads add column if not exists ab_experiment_id text;
 alter table public.leads add column if not exists ab_variant_id    text;
 alter table public.leads add column if not exists ab_visitor_id    text;
@@ -220,6 +222,9 @@ begin
   end if;
 
   update public.leads set
+    for_qualification_at = case when p_stage = 'for_qualification'
+                                then coalesce(for_qualification_at, p_at)
+                                else for_qualification_at end,
     qualified_at    = case when p_stage = 'qualified'    then coalesce(qualified_at, p_at)    else qualified_at end,
     booked_at       = case when p_stage = 'booked'       then coalesce(booked_at, p_at)       else booked_at end,
     showed_at       = case when p_stage = 'showed'       then coalesce(showed_at, p_at)       else showed_at end,
@@ -257,8 +262,9 @@ returns table (
   spend         numeric,
   impressions   bigint,
   clicks        bigint,
-  leads         bigint,
-  qualified     bigint,
+  leads             bigint,
+  for_qualification bigint,
+  qualified         bigint,
   booked        bigint,
   showed        bigint,
   no_shows      bigint,
@@ -287,6 +293,12 @@ as $$
     select
       coalesce(x.ad_id, '(no ad id)') as ad_id,
       count(*)::bigint                   as leads,
+      count(*) filter (where x.for_qualification_at is not null
+                          or x.qualified_at is not null
+                          or x.booked_at   is not null
+                          or x.showed_at   is not null
+                          or x.no_show_at  is not null
+                          or x.won_at      is not null)::bigint as for_qualification,
       -- Stages are cumulative: reaching one means every earlier one was passed,
       -- whether or not a webhook ever stamped it. Counting the columns
       -- literally made "qualified" read 0 next to 2 booked calls.
@@ -320,6 +332,7 @@ as $$
     coalesce(s.impressions, 0)                as impressions,
     coalesce(s.clicks, 0)                     as clicks,
     coalesce(l.leads, 0)                      as leads,
+    coalesce(l.for_qualification, 0)          as for_qualification,
     coalesce(l.qualified, 0)                  as qualified,
     coalesce(l.booked, 0)                     as booked,
     coalesce(l.showed, 0)                     as showed,

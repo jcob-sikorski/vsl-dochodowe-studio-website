@@ -76,6 +76,7 @@ export async function pingSupabase(): Promise<{
 
 /** The stages a lead can pass through. Order is the funnel order. */
 export const LEAD_STAGES = [
+  "for_qualification",
   "opted_in",
   "qualified",
   "booked",

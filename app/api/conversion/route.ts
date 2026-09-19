@@ -45,6 +45,12 @@ const SECRET = (process.env.CONVERSION_WEBHOOK_SECRET || "").trim();
  * workflow shouldn't have to remember which.
  */
 const STAGE_ALIASES: Record<string, LeadStage> = {
+  // for_qualification — handed to the setter, not yet vetted
+  for_qualification: "for_qualification",
+  forqualification: "for_qualification",
+  to_qualify: "for_qualification",
+  do_kwalifikacji: "for_qualification",
+
   // qualified — the setter has vetted the lead but nothing is booked yet
   qualified: "qualified",
   qualify: "qualified",
