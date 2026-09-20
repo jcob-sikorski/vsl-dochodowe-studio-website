@@ -64,6 +64,12 @@ export interface Attribution {
   referrer?: string;
   captured_at?: string;
 
+  /**
+   * When THIS fbclid was first seen in this browser — the click time.
+   * Distinct from captured_at, which is refreshed every time capture runs.
+   */
+  fbclid_at?: string;
+
   /** First page of the very first visit in this browser. */
   first_landing_url?: string;
   first_referrer?: string;
@@ -179,6 +185,7 @@ export function normalizeAttribution(input: unknown): Attribution {
     "landing_url",
     "referrer",
     "captured_at",
+    "fbclid_at",
     "first_landing_url",
     "first_referrer",
     "first_captured_at",
@@ -193,6 +200,7 @@ export function normalizeAttribution(input: unknown): Attribution {
 
   // captured_at must be a real ISO timestamp or nothing at all.
   if (out.captured_at && !Number.isFinite(Date.parse(out.captured_at))) delete out.captured_at;
+  if (out.fbclid_at && !Number.isFinite(Date.parse(out.fbclid_at))) delete out.fbclid_at;
   if (out.first_captured_at && !Number.isFinite(Date.parse(out.first_captured_at))) {
     delete out.first_captured_at;
   }
@@ -229,6 +237,20 @@ export function isValidFbc(value: string | undefined | null): value is string {
   const timestamp = Number(ms);
   const now = Date.now();
   return timestamp <= now + 60_000 && timestamp > now - MAX_CLICK_AGE_MS;
+}
+
+/**
+ * The click ID carried inside an `fbc`, i.e. everything after
+ * fb.<subdomain_index>.<click_time_ms>. — the click ID may itself contain dots,
+ * so this strips the three known leading segments rather than splitting.
+ *
+ * Used to tell a stale cookie from a fresh click: when the URL's fbclid and the
+ * cookie's click ID disagree, they describe two DIFFERENT clicks.
+ */
+export function clickIdFromFbc(value: string | undefined | null): string | undefined {
+  if (!value) return undefined;
+  const match = /^fb\.[^.]*\.[^.]*\.(.+)$/.exec(value.trim());
+  return match ? match[1] : undefined;
 }
 
 /**
@@ -378,6 +400,20 @@ export function captureAttributionFromUrl(): Attribution | null {
   incoming.referrer = sanitizeAttrValue(document.referrer, MAX_LEN.referrer);
   incoming.captured_at = new Date().toISOString();
 
+  // The click time is when THIS fbclid was FIRST seen, not when capture last
+  // ran. resolveAttribution() re-captures on every form submit, so reusing
+  // captured_at stamps a synthesised fbc with the SUBMIT time — exactly what
+  // Meta reports as "Server sending modified fbclid value in fbc parameter".
+  // A new fbclid means a new click and gets a fresh stamp; an unchanged one
+  // keeps its original for the life of the visit.
+  if (incoming.fbclid) {
+    const previous = getStoredAttribution();
+    incoming.fbclid_at =
+      previous.fbclid === incoming.fbclid && previous.fbclid_at
+        ? previous.fbclid_at
+        : incoming.captured_at;
+  }
+
   writeStorage(ATTRIBUTION_STORAGE_KEY, incoming);
 
   // First touch is written exactly once and never overwritten.
@@ -419,10 +455,14 @@ export function resolveAttribution(): Attribution {
     ...cookies,
   };
 
-  // If Meta hasn't set _fbc yet but we have the click ID, build it ourselves —
-  // only when captured_at gives us the real click time. See buildFbcFromClickId.
+  // If Meta hasn't set _fbc yet but we have the click ID, build it ourselves.
+  // The timestamp MUST be the click, never "now": captured_at is refreshed on
+  // every capture, so using it stamps the fbc with the form-submit time and
+  // Meta stops matching the conversion to its click. fbclid_at is written once
+  // per fbclid; first_captured_at covers browsers stored before it existed.
   if (!merged.fbc && merged.fbclid) {
-    const built = buildFbcFromClickId(merged.fbclid, merged.captured_at);
+    const clickTime = merged.fbclid_at ?? merged.first_captured_at;
+    const built = buildFbcFromClickId(merged.fbclid, clickTime);
     if (built) merged.fbc = built;
   }
 

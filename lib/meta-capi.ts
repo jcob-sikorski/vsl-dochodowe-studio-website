@@ -19,7 +19,13 @@
 
 import crypto from "crypto";
 
-import { buildFbcFromClickId, hasPaidClick, isValidFbc, type Attribution } from "./attribution";
+import {
+  buildFbcFromClickId,
+  clickIdFromFbc,
+  hasPaidClick,
+  isValidFbc,
+  type Attribution,
+} from "./attribution";
 import { describeError, fetchWithRetry, safeJson, safeText } from "./http";
 
 /* -------------------------------------------------------------------------- *
@@ -196,10 +202,35 @@ function buildUserData(args: SendMetaEventArgs): Record<string, unknown> {
   // malformed fbc as "Server sending modified fbclid value in fbc parameter" and
   // stops matching the conversion to its click, which is strictly worse than
   // sending no fbc at all and letting hashed email/phone do the matching.
-  const candidateFbc =
-    args.fbc ||
-    attribution.fbc ||
-    (attribution.fbclid ? buildFbcFromClickId(attribution.fbclid, attribution.captured_at) : undefined);
+  // The click time must be when the click happened, never "now". fbclid_at is
+  // stamped once per fbclid; the other two are fallbacks for browsers stored
+  // before that field existed. captured_at is refreshed on every capture, so it
+  // is the weakest of the three and deliberately last.
+  const clickTime = attribution.fbclid_at ?? attribution.first_captured_at ?? attribution.captured_at;
+
+  const cookieFbc = args.fbc || attribution.fbc;
+  const builtFbc = attribution.fbclid
+    ? buildFbcFromClickId(attribution.fbclid, clickTime)
+    : undefined;
+
+  // A surviving _fbc cookie can be months older than the visit. When the URL
+  // carries an fbclid that disagrees with the click ID inside that cookie, the
+  // two describe DIFFERENT clicks — and the fbclid is the one that delivered
+  // this visit. Crediting the cookie then attributes the conversion to a click
+  // that may sit far outside the attribution window, which is both wrong and
+  // the sort of thing Meta reports as a modified fbclid.
+  const cookieClickId = clickIdFromFbc(cookieFbc);
+  const cookieIsStale = Boolean(
+    attribution.fbclid && cookieClickId && cookieClickId !== attribution.fbclid
+  );
+
+  if (cookieIsStale && builtFbc) {
+    console.info(
+      `[meta-capi] ${args.eventName}: _fbc cookie is from an earlier click — using the fbclid from this visit`
+    );
+  }
+
+  const candidateFbc = cookieIsStale ? (builtFbc ?? cookieFbc) : (cookieFbc ?? builtFbc);
 
   const fbc = isValidFbc(candidateFbc) ? candidateFbc : undefined;
   if (candidateFbc && !fbc) {
