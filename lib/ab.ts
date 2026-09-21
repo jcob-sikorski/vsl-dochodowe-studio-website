@@ -64,7 +64,7 @@ export interface AbExperiment {
  * ========================================================================== */
 
 export const HEADLINE_EXPERIMENT: AbExperiment = {
-  id: "headline_2026_09_v2",
+  id: "headline_2026_09_v3",
   enabled: true,
 
   subheadline:
@@ -72,10 +72,10 @@ export const HEADLINE_EXPERIMENT: AbExperiment = {
     variants: [
       {
         id: "control",
-        label: "A — Wynik finansowy",
+        label: "A — Gotowy model i niezależność",
         weight: 34,
         headline:
-          "Zbuduj studio treningowe, które generuje 20–50 tys. zł miesięcznie",
+          "Wdróż sprawdzony model studia treningowego i generuj 20–50 tys. zł miesięcznie dzięki procesom, sprzedaży i zespołowi — bez prowadzenia treningów",
       },
       {
         id: "b",
