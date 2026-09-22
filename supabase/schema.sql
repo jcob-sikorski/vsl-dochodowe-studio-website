@@ -56,8 +56,10 @@ create table if not exists public.leads (
   for_qualification_at timestamptz,
   qualified_at      timestamptz,
   booked_at         timestamptz,
+  rescheduled_at    timestamptz,
   showed_at         timestamptz,
   no_show_at        timestamptz,
+  proposal_sent_at  timestamptz,
   won_at            timestamptz,
   lost_at           timestamptz,
   disqualified_at   timestamptz,
@@ -74,6 +76,8 @@ create table if not exists public.leads (
 
 -- Additive, for databases created before these columns existed.
 alter table public.leads add column if not exists for_qualification_at timestamptz;
+alter table public.leads add column if not exists rescheduled_at       timestamptz;
+alter table public.leads add column if not exists proposal_sent_at     timestamptz;
 alter table public.leads add column if not exists ab_experiment_id text;
 alter table public.leads add column if not exists ab_variant_id    text;
 alter table public.leads add column if not exists ab_visitor_id    text;
@@ -227,7 +231,11 @@ begin
                                 else for_qualification_at end,
     qualified_at    = case when p_stage = 'qualified'    then coalesce(qualified_at, p_at)    else qualified_at end,
     booked_at       = case when p_stage = 'booked'       then coalesce(booked_at, p_at)       else booked_at end,
+    rescheduled_at  = case when p_stage = 'rescheduled'  then coalesce(rescheduled_at, p_at)  else rescheduled_at end,
     showed_at       = case when p_stage = 'showed'       then coalesce(showed_at, p_at)       else showed_at end,
+    proposal_sent_at = case when p_stage = 'proposal_sent'
+                            then coalesce(proposal_sent_at, p_at)
+                            else proposal_sent_at end,
     no_show_at      = case when p_stage = 'no_show'      then coalesce(no_show_at, p_at)      else no_show_at end,
     won_at          = case when p_stage = 'won'          then coalesce(won_at, p_at)          else won_at end,
     lost_at         = case when p_stage = 'lost'         then coalesce(lost_at, p_at)         else lost_at end,
@@ -265,11 +273,14 @@ returns table (
   leads             bigint,
   for_qualification bigint,
   qualified         bigint,
-  booked        bigint,
-  showed        bigint,
-  no_shows      bigint,
-  won           bigint,
-  revenue       numeric
+  booked            bigint,
+  rescheduled       bigint,
+  showed            bigint,
+  no_shows          bigint,
+  no_shows_final    bigint,
+  proposal_sent     bigint,
+  won               bigint,
+  revenue           numeric
 )
 language sql
 stable
@@ -293,28 +304,60 @@ as $$
     select
       coalesce(x.ad_id, '(no ad id)') as ad_id,
       count(*)::bigint                   as leads,
-      count(*) filter (where x.for_qualification_at is not null
-                          or x.qualified_at is not null
-                          or x.booked_at   is not null
-                          or x.showed_at   is not null
-                          or x.no_show_at  is not null
-                          or x.won_at      is not null)::bigint as for_qualification,
       -- Stages are cumulative: reaching one means every earlier one was passed,
-      -- whether or not a webhook ever stamped it. Counting the columns
-      -- literally made "qualified" read 0 next to 2 booked calls.
-      count(*) filter (where x.qualified_at is not null
-                          or x.booked_at   is not null
-                          or x.showed_at   is not null
-                          or x.no_show_at  is not null
-                          or x.won_at      is not null)::bigint as qualified,
-      count(*) filter (where x.booked_at   is not null
-                          or x.showed_at   is not null
-                          or x.no_show_at  is not null
-                          or x.won_at      is not null)::bigint as booked,
-      count(*) filter (where x.showed_at   is not null
-                          or x.won_at      is not null)::bigint as showed,
-      -- A branch, not a level: never rolled up from anything.
+      -- whether or not a webhook ever stamped it.
+      --
+      -- `showed` is DERIVED, never dragged. A held call is proven by reaching
+      -- Proposal Sent, Lost or Won — Lost is only used after a call in this
+      -- pipeline — so closers move a card exactly as they already do and no
+      -- number depends on anyone remembering an extra attendance step.
+      count(*) filter (where x.for_qualification_at is not null
+                          or x.qualified_at     is not null
+                          or x.booked_at        is not null
+                          or x.rescheduled_at   is not null
+                          or x.no_show_at       is not null
+                          or x.showed_at        is not null
+                          or x.proposal_sent_at is not null
+                          or x.lost_at          is not null
+                          or x.won_at           is not null)::bigint as for_qualification,
+      count(*) filter (where x.qualified_at     is not null
+                          or x.booked_at        is not null
+                          or x.rescheduled_at   is not null
+                          or x.no_show_at       is not null
+                          or x.showed_at        is not null
+                          or x.proposal_sent_at is not null
+                          or x.lost_at          is not null
+                          or x.won_at           is not null)::bigint as qualified,
+      count(*) filter (where x.booked_at        is not null
+                          or x.rescheduled_at   is not null
+                          or x.no_show_at       is not null
+                          or x.showed_at        is not null
+                          or x.proposal_sent_at is not null
+                          or x.lost_at          is not null
+                          or x.won_at           is not null)::bigint as booked,
+      count(*) filter (where x.showed_at        is not null
+                          or x.proposal_sent_at is not null
+                          or x.lost_at          is not null
+                          or x.won_at           is not null)::bigint as showed,
+      count(*) filter (where x.proposal_sent_at is not null
+                          or x.won_at           is not null)::bigint as proposal_sent,
+
+      -- Branches off "booked", not deeper levels — never rolled up into one.
+      -- A reschedule does not clear booked_at: the first booking is the one
+      -- the ad paid for.
+      count(x.rescheduled_at)::bigint    as rescheduled,
+
+      -- no_shows counts anyone who missed AT LEAST ONE call (coalesce means the
+      -- stamp never clears, so a recovered no-show keeps it). no_shows_final is
+      -- the honest "missed and never made it to a call" — use that one when you
+      -- want to know what no-shows actually cost.
       count(x.no_show_at)::bigint        as no_shows,
+      count(*) filter (where x.no_show_at is not null
+                         and x.showed_at is null
+                         and x.proposal_sent_at is null
+                         and x.lost_at is null
+                         and x.won_at is null)::bigint as no_shows_final,
+
       count(x.won_at)::bigint            as won,
       coalesce(sum(x.revenue) filter (where x.won_at is not null), 0)::numeric as revenue
     from public.leads x
@@ -335,8 +378,11 @@ as $$
     coalesce(l.for_qualification, 0)          as for_qualification,
     coalesce(l.qualified, 0)                  as qualified,
     coalesce(l.booked, 0)                     as booked,
+    coalesce(l.rescheduled, 0)                as rescheduled,
     coalesce(l.showed, 0)                     as showed,
     coalesce(l.no_shows, 0)                   as no_shows,
+    coalesce(l.no_shows_final, 0)             as no_shows_final,
+    coalesce(l.proposal_sent, 0)              as proposal_sent,
     coalesce(l.won, 0)                        as won,
     coalesce(l.revenue, 0)                    as revenue
   from s

@@ -68,6 +68,13 @@ const STAGE_ALIASES: Record<string, LeadStage> = {
   booked_call: "booked",
   umowione: "booked",
 
+  // rescheduled — the call moved; still booked, not a no-show, not a show
+  rescheduled: "rescheduled",
+  reschedule: "rescheduled",
+  rebooked: "rescheduled",
+  przeniesione: "rescheduled",
+  przelozone: "rescheduled",
+
   // showed — they turned up
   showed: "showed",
   show: "showed",
@@ -80,6 +87,14 @@ const STAGE_ALIASES: Record<string, LeadStage> = {
   noshow: "no_show",
   did_not_show: "no_show",
   nieobecny: "no_show",
+
+  // proposal_sent — offer on the table; proves the call was held
+  proposal_sent: "proposal_sent",
+  proposal: "proposal_sent",
+  offer: "proposal_sent",
+  offer_sent: "proposal_sent",
+  oferta: "proposal_sent",
+  oferta_wyslana: "proposal_sent",
 
   // won — money
   won: "won",
@@ -111,6 +126,11 @@ const STAGE_ALIASES: Record<string, LeadStage> = {
  * than reusing "Lead", and why `showed` deliberately maps to nothing — it used
  * to send `Lead` and collided with `booked`, silently vanishing. Show rate
  * lives in Supabase.
+ */
+/**
+ * `showed` is never sent by a closer — it is derived in funnel_report from
+ * Proposal Sent / Lost / Won, all of which prove the call happened. The stage
+ * alias still exists so an explicit `showed` webhook works if you ever add one.
  */
 const META_EVENT_FOR_STAGE: Partial<Record<LeadStage, MetaEventName>> = {
   qualified: "Qualified",

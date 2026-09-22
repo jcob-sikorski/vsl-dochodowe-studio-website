@@ -30,8 +30,11 @@ interface ReportRow {
   for_qualification: number | string;
   qualified: number | string;
   booked: number | string;
+  rescheduled: number | string;
   showed: number | string;
   no_shows: number | string;
+  no_shows_final: number | string;
+  proposal_sent: number | string;
   won: number | string;
   revenue: number | string;
 }
@@ -56,8 +59,11 @@ interface Totals {
   forQualification: number;
   qualified: number;
   booked: number;
+  rescheduled: number;
   showed: number;
   noShows: number;
+  noShowsFinal: number;
+  proposalSent: number;
   won: number;
   revenue: number;
 }
@@ -166,14 +172,18 @@ export default async function DashboardPage({
       forQualification: acc.forQualification + n(r.for_qualification),
       qualified: acc.qualified + n(r.qualified),
       booked: acc.booked + n(r.booked),
+      rescheduled: acc.rescheduled + n(r.rescheduled),
       showed: acc.showed + n(r.showed),
       noShows: acc.noShows + n(r.no_shows),
+      noShowsFinal: acc.noShowsFinal + n(r.no_shows_final),
+      proposalSent: acc.proposalSent + n(r.proposal_sent),
       won: acc.won + n(r.won),
       revenue: acc.revenue + n(r.revenue),
     }),
     {
       spend: 0, impressions: 0, clicks: 0, leads: 0, forQualification: 0,
-      qualified: 0, booked: 0, showed: 0, noShows: 0, won: 0, revenue: 0,
+      qualified: 0, booked: 0, rescheduled: 0, showed: 0, noShows: 0,
+      noShowsFinal: 0, proposalSent: 0, won: 0, revenue: 0,
     }
   );
 
@@ -185,6 +195,7 @@ export default async function DashboardPage({
     { label: "Qualified", value: totals.qualified },
     { label: "Booked", value: totals.booked },
     { label: "Showed", value: totals.showed },
+    { label: "Proposal sent", value: totals.proposalSent },
     { label: "Won", value: totals.won },
   ];
 
@@ -201,6 +212,20 @@ export default async function DashboardPage({
           note={roas === undefined ? "no spend in range" : roas >= 1 ? "profitable on ad cost" : "below break-even"}
         />
         <Tile label="Show rate" value={pct(rate(totals.showed, totals.booked))} note={`${int.format(totals.showed)} of ${int.format(totals.booked)} booked`} />
+        <Tile
+          label="No-show rate"
+          value={pct(rate(totals.noShowsFinal, totals.booked))}
+          tone={
+            totals.booked === 0
+              ? undefined
+              : totals.noShowsFinal / totals.booked >= 0.3
+                ? "critical"
+                : totals.noShowsFinal / totals.booked >= 0.15
+                  ? "warning"
+                  : "good"
+          }
+          note={`${int.format(totals.noShowsFinal)} never made a call · ${int.format(totals.rescheduled)} rescheduled`}
+        />
       </section>
 
       {/* ---- cost per stage ------------------------------------------ */}
@@ -211,6 +236,7 @@ export default async function DashboardPage({
         <Tile size="sm" label="Per qualified" value={cost(totals.spend, totals.qualified)} note={`${int.format(totals.qualified)} qualified`} />
         <Tile size="sm" label="Per booked call" value={cost(totals.spend, totals.booked)} note={`${int.format(totals.booked)} booked`} />
         <Tile size="sm" label="Per show" value={cost(totals.spend, totals.showed)} note={`${int.format(totals.showed)} showed`} />
+        <Tile size="sm" label="Per proposal" value={cost(totals.spend, totals.proposalSent)} note={`${int.format(totals.proposalSent)} proposals`} />
         <Tile size="sm" label="Per purchase" value={cost(totals.spend, totals.won)} note={`${int.format(totals.won)} won`} />
       </section>
 
@@ -244,6 +270,7 @@ export default async function DashboardPage({
                 <th scope="col">Booked</th>
                 <th scope="col">Showed</th>
                 <th scope="col">Show&nbsp;rate</th>
+                <th scope="col">Prop.</th>
                 <th scope="col">Won</th>
                 <th scope="col">CP&nbsp;lead</th>
                 <th scope="col">CP&nbsp;show</th>
@@ -275,6 +302,7 @@ export default async function DashboardPage({
                     <td>{int.format(booked)}</td>
                     <td>{int.format(showed)}</td>
                     <td>{pct(rate(showed, booked))}</td>
+                    <td>{int.format(n(r.proposal_sent))}</td>
                     <td>{int.format(won)}</td>
                     <td>{cost(spend, leads)}</td>
                     <td>{cost(spend, showed)}</td>
@@ -303,6 +331,7 @@ export default async function DashboardPage({
                 <td>{int.format(totals.booked)}</td>
                 <td>{int.format(totals.showed)}</td>
                 <td>{pct(rate(totals.showed, totals.booked))}</td>
+                <td>{int.format(totals.proposalSent)}</td>
                 <td>{int.format(totals.won)}</td>
                 <td>{cost(totals.spend, totals.leads)}</td>
                 <td>{cost(totals.spend, totals.showed)}</td>
@@ -754,6 +783,7 @@ const CSS = `
   --step-4: #2a78d6;
   --step-5: #1c5cab;
   --step-6: #184f95;
+  --step-7: #104281;
 
   --accent: #ea580c;
 
@@ -798,6 +828,7 @@ const CSS = `
   --step-4: #2a78d6;
   --step-5: #3987e5;
   --step-6: #5598e7;
+  --step-7: #6da7ec;
   }
 }
 
@@ -828,6 +859,7 @@ const CSS = `
   --step-4: #2a78d6;
   --step-5: #3987e5;
   --step-6: #5598e7;
+  --step-7: #6da7ec;
 }
 
 /* A single cool wash at the top edge — the only decoration on the page. */
@@ -1004,6 +1036,7 @@ const CSS = `
 .funnel-bar.step-4 { background: var(--step-4); }
 .funnel-bar.step-5 { background: var(--step-5); }
 .funnel-bar.step-6 { background: var(--step-6); }
+.funnel-bar.step-7 { background: var(--step-7); }
 .funnel-value {
   font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums;
   color: var(--text-primary);
