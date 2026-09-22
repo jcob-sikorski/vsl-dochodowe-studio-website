@@ -10,7 +10,7 @@ import {
   type AbVariant,
 } from "@/lib/ab";
 
-const WISTIA_MEDIA_ID = "7x5z8afagi";
+const WISTIA_MEDIA_ID = "7u92v9z9de";
 
 declare global {
   namespace JSX {
