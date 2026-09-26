@@ -72,9 +72,9 @@ to remove.
 7. **Flip the toggle from Draft to Publish.** A duplicate is always created as a
    draft, and a draft never fires. This is the step that gets missed.
 
-**Priority:** build **Proposal Sent** and **Lost** first. Show rate is derived
-from those two, so until both exist it stays at 0% no matter how many calls
-actually happen.
+**Priority:** build **Proposal Sent**, **No Show** and **Lost** first. Show
+rate is Proposal Sent (held) against No Show + Lost (missed), so until those
+exist every call stays "pending" no matter how many actually happen.
 
 ---
 

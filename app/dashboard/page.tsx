@@ -35,6 +35,7 @@ interface ReportRow {
   no_shows: number | string;
   no_shows_final: number | string;
   proposal_sent: number | string;
+  proposals_open: number | string;
   won: number | string;
   revenue: number | string;
 }
@@ -64,6 +65,7 @@ interface Totals {
   noShows: number;
   noShowsFinal: number;
   proposalSent: number;
+  proposalsOpen: number;
   won: number;
   revenue: number;
 }
@@ -177,26 +179,74 @@ export default async function DashboardPage({
       noShows: acc.noShows + n(r.no_shows),
       noShowsFinal: acc.noShowsFinal + n(r.no_shows_final),
       proposalSent: acc.proposalSent + n(r.proposal_sent),
+      proposalsOpen: acc.proposalsOpen + n(r.proposals_open),
       won: acc.won + n(r.won),
       revenue: acc.revenue + n(r.revenue),
     }),
     {
       spend: 0, impressions: 0, clicks: 0, leads: 0, forQualification: 0,
       qualified: 0, booked: 0, rescheduled: 0, showed: 0, noShows: 0,
-      noShowsFinal: 0, proposalSent: 0, won: 0, revenue: 0,
+      noShowsFinal: 0, proposalSent: 0, proposalsOpen: 0, won: 0, revenue: 0,
     }
   );
 
   const roas = rate(totals.revenue, totals.spend);
+
+  // Every booked call is in exactly one state, set by where the closer moved
+  // the card (see funnel_report):
+  //   held     — Proposal Sent or Won
+  //   missed   — No Show or Lost, never held
+  //   pending  — still in Booked Call / Rescheduled
+  // Show and no-show rates are measured against calls with an outcome only —
+  // dividing by every booking counts next week's calls as no-shows today.
+  const calls = callOutcomes(totals.booked, totals.showed, totals.noShowsFinal);
+  const pendingNote = calls.pending > 0 ? ` · ${int.format(calls.pending)} calls pending` : "";
+
+  // While calls are pending or proposals are open, spend ÷ outcomes-so-far
+  // overstates the cost: the spend also bought the bookings that haven't
+  // resolved yet. The estimate assumes pending calls show, and open proposals
+  // close, at the rates seen so far:
+  //   expected shows = held + pending × show rate      (= booked × show rate)
+  //   expected wins  = won + (open proposals + expected new shows) × close rate
+  // Close rate is won ÷ decided proposals (Won or Lost after a proposal).
+  const decided = Math.max(0, totals.showed - totals.proposalsOpen);
+  const closeRate = rate(totals.won, decided);
+  const expectedShows =
+    calls.showRate === undefined ? undefined : totals.showed + calls.pending * calls.showRate;
+  const expectedWins =
+    closeRate === undefined || expectedShows === undefined
+      ? undefined
+      : totals.won + (totals.proposalsOpen + (expectedShows - totals.showed)) * closeRate;
+  const perShow = costEstimate(totals.spend, totals.showed, expectedShows, calls.pending > 0);
+  const perPurchase = costEstimate(
+    totals.spend,
+    totals.won,
+    expectedWins,
+    calls.pending > 0 || totals.proposalsOpen > 0
+  );
 
   const funnel = [
     { label: "Leads", value: totals.leads },
     { label: "For qualification", value: totals.forQualification },
     { label: "Qualified", value: totals.qualified },
     { label: "Booked", value: totals.booked },
-    { label: "Showed", value: totals.showed },
-    { label: "Proposal sent", value: totals.proposalSent },
-    { label: "Won", value: totals.won },
+    {
+      // Showed and Proposal sent are the same number by definition — one row.
+      label: "Showed · proposal sent",
+      value: totals.showed,
+      note:
+        calls.pending > 0
+          ? `${pct(calls.showRate)} of past calls · ${int.format(calls.pending)} pending`
+          : undefined,
+    },
+    {
+      label: "Won",
+      value: totals.won,
+      note:
+        totals.proposalsOpen > 0
+          ? `${pct(rate(totals.won, totals.showed - totals.proposalsOpen))} of decided · ${int.format(totals.proposalsOpen)} open`
+          : undefined,
+    },
   ];
 
   return (
@@ -211,20 +261,24 @@ export default async function DashboardPage({
           tone={roas === undefined ? undefined : roas >= 3 ? "good" : roas >= 1 ? "warning" : "critical"}
           note={roas === undefined ? "no spend in range" : roas >= 1 ? "profitable on ad cost" : "below break-even"}
         />
-        <Tile label="Show rate" value={pct(rate(totals.showed, totals.booked))} note={`${int.format(totals.showed)} of ${int.format(totals.booked)} booked`} />
+        <Tile
+          label="Show rate"
+          value={pct(calls.showRate)}
+          note={`${int.format(totals.showed)} of ${int.format(calls.resolved)} past calls · ${int.format(calls.pending)} pending`}
+        />
         <Tile
           label="No-show rate"
-          value={pct(rate(totals.noShowsFinal, totals.booked))}
+          value={pct(calls.noShowRate)}
           tone={
-            totals.booked === 0
+            calls.noShowRate === undefined
               ? undefined
-              : totals.noShowsFinal / totals.booked >= 0.3
+              : calls.noShowRate >= 0.3
                 ? "critical"
-                : totals.noShowsFinal / totals.booked >= 0.15
+                : calls.noShowRate >= 0.15
                   ? "warning"
                   : "good"
           }
-          note={`${int.format(totals.noShowsFinal)} never made a call · ${int.format(totals.rescheduled)} rescheduled`}
+          note={`${int.format(totals.noShowsFinal)} no-show or lost · ${int.format(totals.rescheduled)} rescheduled`}
         />
       </section>
 
@@ -235,9 +289,18 @@ export default async function DashboardPage({
         <Tile size="sm" label="Per for qualification" value={cost(totals.spend, totals.forQualification)} note={`${int.format(totals.forQualification)} for qualification`} />
         <Tile size="sm" label="Per qualified" value={cost(totals.spend, totals.qualified)} note={`${int.format(totals.qualified)} qualified`} />
         <Tile size="sm" label="Per booked call" value={cost(totals.spend, totals.booked)} note={`${int.format(totals.booked)} booked`} />
-        <Tile size="sm" label="Per show" value={cost(totals.spend, totals.showed)} note={`${int.format(totals.showed)} showed`} />
-        <Tile size="sm" label="Per proposal" value={cost(totals.spend, totals.proposalSent)} note={`${int.format(totals.proposalSent)} proposals`} />
-        <Tile size="sm" label="Per purchase" value={cost(totals.spend, totals.won)} note={`${int.format(totals.won)} won`} />
+        <Tile
+          size="sm"
+          label="Per show · proposal"
+          value={perShow.value}
+          note={`${perShow.prefix}${int.format(totals.showed)} showed${pendingNote}`}
+        />
+        <Tile
+          size="sm"
+          label="Per purchase"
+          value={perPurchase.value}
+          note={`${perPurchase.prefix}${int.format(totals.won)} won${totals.proposalsOpen > 0 ? ` · ${int.format(totals.proposalsOpen)} proposals open` : ""}${pendingNote}`}
+        />
       </section>
 
       {/* ---- funnel -------------------------------------------------- */}
@@ -269,8 +332,9 @@ export default async function DashboardPage({
                 <th scope="col">Qual.</th>
                 <th scope="col">Booked</th>
                 <th scope="col">Showed</th>
+                <th scope="col">Pending</th>
                 <th scope="col">Show&nbsp;rate</th>
-                <th scope="col">Prop.</th>
+                <th scope="col">Open&nbsp;prop.</th>
                 <th scope="col">Won</th>
                 <th scope="col">CP&nbsp;lead</th>
                 <th scope="col">CP&nbsp;show</th>
@@ -288,6 +352,7 @@ export default async function DashboardPage({
                 const won = n(r.won);
                 const revenue = n(r.revenue);
                 const rowRoas = rate(revenue, spend);
+                const rowCalls = callOutcomes(booked, showed, n(r.no_shows_final));
 
                 return (
                   <tr key={`${r.ad_id ?? "none"}-${i}`}>
@@ -301,8 +366,9 @@ export default async function DashboardPage({
                     <td>{int.format(n(r.qualified))}</td>
                     <td>{int.format(booked)}</td>
                     <td>{int.format(showed)}</td>
-                    <td>{pct(rate(showed, booked))}</td>
-                    <td>{int.format(n(r.proposal_sent))}</td>
+                    <td>{int.format(rowCalls.pending)}</td>
+                    <td>{pct(rowCalls.showRate)}</td>
+                    <td>{int.format(n(r.proposals_open))}</td>
                     <td>{int.format(won)}</td>
                     <td>{cost(spend, leads)}</td>
                     <td>{cost(spend, showed)}</td>
@@ -330,8 +396,9 @@ export default async function DashboardPage({
                 <td>{int.format(totals.qualified)}</td>
                 <td>{int.format(totals.booked)}</td>
                 <td>{int.format(totals.showed)}</td>
-                <td>{pct(rate(totals.showed, totals.booked))}</td>
-                <td>{int.format(totals.proposalSent)}</td>
+                <td>{int.format(calls.pending)}</td>
+                <td>{pct(calls.showRate)}</td>
+                <td>{int.format(totals.proposalsOpen)}</td>
                 <td>{int.format(totals.won)}</td>
                 <td>{cost(totals.spend, totals.leads)}</td>
                 <td>{cost(totals.spend, totals.showed)}</td>
@@ -347,7 +414,13 @@ export default async function DashboardPage({
       <p className="foot">
         Leads are counted by opt-in date; spend by the day it was spent. A deal that
         closes weeks after the click still counts against the click&rsquo;s date, so recent
-        ranges understate ROAS until the pipeline catches up.
+        ranges understate ROAS until the pipeline catches up. Call outcomes follow the
+        cards: Proposal Sent or Won is a held call, No Show or Lost is a missed one, and
+        a card still in Booked Call is pending. Show and no&#8209;show rates count only
+        calls with an outcome. While calls are pending or proposals are open, cost per
+        show and per purchase show an estimate (~) that assumes the rest resolve at the
+        rates seen so far; the real cost to date is in the note underneath. On a small
+        number of calls the estimate moves a lot &mdash; treat it as a direction, not a price.
       </p>
     </Shell>
   );
@@ -540,7 +613,7 @@ function Tile({
  * count and its conversion rate from the step above, so nothing depends on
  * reading a colour or hovering.
  */
-function Funnel({ steps }: { steps: { label: string; value: number }[] }) {
+function Funnel({ steps }: { steps: { label: string; value: number; note?: string }[] }) {
   const top = Math.max(1, steps[0]?.value ?? 0);
 
   return (
@@ -567,7 +640,8 @@ function Funnel({ steps }: { steps: { label: string; value: number }[] }) {
               <span className="funnel-value">{int.format(step.value)}</span>
             </div>
             <div className="funnel-rate">
-              {conversion === undefined ? "" : `${pct(conversion)} of ${steps[i - 1].label.toLowerCase()}`}
+              {step.note ??
+                (conversion === undefined ? "" : `${pct(conversion)} of ${steps[i - 1].label.toLowerCase()}`)}
             </div>
           </div>
         );
@@ -643,6 +717,43 @@ function Shell({
 }
 
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Splits booked calls into held, missed and still-to-happen. `showed` and
+ * `noShowsFinal` are disjoint subsets of `booked` (see funnel_report), so the
+ * remainder is every booking with no outcome yet — mostly calls in the future.
+ */
+function callOutcomes(booked: number, showed: number, noShowsFinal: number) {
+  const resolved = showed + noShowsFinal;
+  return {
+    resolved,
+    pending: Math.max(0, booked - resolved),
+    showRate: rate(showed, resolved),
+    noShowRate: rate(noShowsFinal, resolved),
+  };
+}
+
+/**
+ * Cost per outcome while outcomes are still coming in. Shows the estimate as
+ * the headline ("~122 zł") and the realised cost so far in the note, so the
+ * real number is never hidden. Falls back to the plain realised cost when
+ * nothing is pending or there is no rate to estimate from yet.
+ */
+function costEstimate(
+  spend: number,
+  actual: number,
+  expected: number | undefined,
+  pending: boolean
+): { value: string; prefix: string } {
+  const realised = cost(spend, actual);
+  if (!pending || expected === undefined || !(expected > actual)) {
+    return { value: realised, prefix: "" };
+  }
+  return {
+    value: `~${pln.format(spend / expected)}`,
+    prefix: realised === "—" ? "est. · " : `est. · ${realised} so far · `,
+  };
+}
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;

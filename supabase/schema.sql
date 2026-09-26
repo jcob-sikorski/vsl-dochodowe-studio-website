@@ -9,7 +9,8 @@
 --    ad_spend   — one row per ad per day, pulled from the Meta Marketing API
 --
 --  Funnel stages are cumulative when counted: booked implies qualified,
---  showed implies booked, won implies showed. GHL only ever stamps the stage
+--  showed implies booked, won implies showed. "Showed" is only ever proven by
+--  Proposal Sent or Won; No Show and Lost both count as a missed call. GHL only ever stamps the stage
 --  it moved a card to, so the earlier columns stay null on the row.
 --
 --  Everything else (show rate, cost per qualified lead, cost per show, cost
@@ -257,6 +258,10 @@ $$;
 -- appear. Those rows are the ones costing you money for nothing, and an inner
 -- join would hide exactly the thing you most need to see.
 -- ---------------------------------------------------------------------------
+-- Return type changed on 2026-09-26 (proposals_open); create-or-replace
+-- refuses that, so drop first. Safe: nothing depends on this function.
+drop function if exists public.funnel_report(date, date, text);
+
 create or replace function public.funnel_report(
   p_from    date,
   p_to      date,
@@ -279,6 +284,7 @@ returns table (
   no_shows          bigint,
   no_shows_final    bigint,
   proposal_sent     bigint,
+  proposals_open    bigint,
   won               bigint,
   revenue           numeric
 )
@@ -300,17 +306,24 @@ as $$
     where a.date >= p_from and a.date <= p_to
     group by a.ad_id
   ),
+  x as (
+    -- One flag per lead for "the call happened", so every count below agrees.
+    -- Only Proposal Sent or Won proves a held call. Lost does NOT: it is
+    -- treated as a no-show, the same as No Show.
+    select
+      ld.*,
+      (ld.proposal_sent_at is not null or ld.won_at is not null) as held
+    from public.leads ld
+    where ld.opted_in_at >= p_from::timestamptz
+      and ld.opted_in_at <  (p_to + 1)::timestamptz
+      and (p_traffic = 'all' or ld.traffic_type = p_traffic)
+  ),
   l as (
     select
       coalesce(x.ad_id, '(no ad id)') as ad_id,
       count(*)::bigint                   as leads,
       -- Stages are cumulative: reaching one means every earlier one was passed,
       -- whether or not a webhook ever stamped it.
-      --
-      -- `showed` is DERIVED, never dragged. A held call is proven by reaching
-      -- Proposal Sent, Lost or Won — Lost is only used after a call in this
-      -- pipeline — so closers move a card exactly as they already do and no
-      -- number depends on anyone remembering an extra attendance step.
       count(*) filter (where x.for_qualification_at is not null
                           or x.qualified_at     is not null
                           or x.booked_at        is not null
@@ -335,35 +348,32 @@ as $$
                           or x.proposal_sent_at is not null
                           or x.lost_at          is not null
                           or x.won_at           is not null)::bigint as booked,
-      count(*) filter (where x.showed_at        is not null
-                          or x.proposal_sent_at is not null
-                          or x.lost_at          is not null
-                          or x.won_at           is not null)::bigint as showed,
-      count(*) filter (where x.proposal_sent_at is not null
-                          or x.won_at           is not null)::bigint as proposal_sent,
 
-      -- Branches off "booked", not deeper levels — never rolled up into one.
-      -- A reschedule does not clear booked_at: the first booking is the one
-      -- the ad paid for.
+      -- Held call = Proposal Sent or Won. Nothing else.
+      count(*) filter (where x.held)::bigint as showed,
+      count(*) filter (where x.held)::bigint as proposal_sent,
+
+      -- Proposal out, no decision yet: not Won, not Lost.
+      count(*) filter (where x.proposal_sent_at is not null
+                         and x.won_at  is null
+                         and x.lost_at is null)::bigint as proposals_open,
+
+      -- Branches off "booked". A reschedule does not clear booked_at.
       count(x.rescheduled_at)::bigint    as rescheduled,
 
-      -- no_shows counts anyone who missed AT LEAST ONE call (coalesce means the
-      -- stamp never clears, so a recovered no-show keeps it). no_shows_final is
-      -- the honest "missed and never made it to a call" — use that one when you
-      -- want to know what no-shows actually cost.
-      count(x.no_show_at)::bigint        as no_shows,
+      -- No Show and Lost both mean the call did not happen. A lead who reached
+      -- Proposal Sent / Won held a call, so a later Lost is a lost deal, not a
+      -- no-show.
+      --   no_shows       — missed at least one call (No Show stamp never clears)
+      --   no_shows_final — no-show / lost and never held a call. The real cost.
       count(*) filter (where x.no_show_at is not null
-                         and x.showed_at is null
-                         and x.proposal_sent_at is null
-                         and x.lost_at is null
-                         and x.won_at is null)::bigint as no_shows_final,
+                          or (x.lost_at is not null and not x.held))::bigint as no_shows,
+      count(*) filter (where (x.no_show_at is not null or x.lost_at is not null)
+                         and not x.held)::bigint as no_shows_final,
 
       count(x.won_at)::bigint            as won,
       coalesce(sum(x.revenue) filter (where x.won_at is not null), 0)::numeric as revenue
-    from public.leads x
-    where x.opted_in_at >= p_from::timestamptz
-      and x.opted_in_at <  (p_to + 1)::timestamptz
-      and (p_traffic = 'all' or x.traffic_type = p_traffic)
+    from x
     group by 1
   )
   select
@@ -383,6 +393,7 @@ as $$
     coalesce(l.no_shows, 0)                   as no_shows,
     coalesce(l.no_shows_final, 0)             as no_shows_final,
     coalesce(l.proposal_sent, 0)              as proposal_sent,
+    coalesce(l.proposals_open, 0)             as proposals_open,
     coalesce(l.won, 0)                        as won,
     coalesce(l.revenue, 0)                    as revenue
   from s
@@ -537,17 +548,24 @@ as $$
       x.ab_variant_id    as variant_id,
       count(*)::bigint              as leads,
       -- Cumulative, same rule as funnel_report.
-      count(*) filter (where x.qualified_at is not null
-                          or x.booked_at   is not null
-                          or x.showed_at   is not null
-                          or x.no_show_at  is not null
-                          or x.won_at      is not null)::bigint as qualified,
-      count(*) filter (where x.booked_at   is not null
-                          or x.showed_at   is not null
-                          or x.no_show_at  is not null
-                          or x.won_at      is not null)::bigint as booked,
-      count(*) filter (where x.showed_at   is not null
-                          or x.won_at      is not null)::bigint as showed,
+      count(*) filter (where x.qualified_at     is not null
+                          or x.booked_at        is not null
+                          or x.rescheduled_at   is not null
+                          or x.no_show_at       is not null
+                          or x.showed_at        is not null
+                          or x.proposal_sent_at is not null
+                          or x.lost_at          is not null
+                          or x.won_at           is not null)::bigint as qualified,
+      count(*) filter (where x.booked_at        is not null
+                          or x.rescheduled_at   is not null
+                          or x.no_show_at       is not null
+                          or x.showed_at        is not null
+                          or x.proposal_sent_at is not null
+                          or x.lost_at          is not null
+                          or x.won_at           is not null)::bigint as booked,
+      -- Held call = Proposal Sent or Won, same rule as funnel_report.
+      count(*) filter (where x.proposal_sent_at is not null
+                          or x.won_at           is not null)::bigint as showed,
       count(x.won_at)::bigint       as won,
       coalesce(sum(x.revenue) filter (where x.won_at is not null), 0)::numeric as revenue
     from public.leads x

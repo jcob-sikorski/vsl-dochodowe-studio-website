@@ -5,9 +5,17 @@ describes what happened; the database follows.
 
 ## The rule
 
-**Never drag a "Showed" step.** There isn't one. A held call is proven by where
-the card ends up: Proposal Sent, Lost and Won all mean the call happened. Only
-No Show means it didn't.
+The dashboard follows the cards and nothing else:
+
+| Card is in | Dashboard counts it as |
+|---|---|
+| Booked Call / Rescheduled | booked — call **pending** |
+| Proposal Sent | **showed** (held call) |
+| Won | showed + **purchase** |
+| No Show | **no-show** |
+| Lost | **no-show** — unless it already reached Proposal Sent, then it's a lost deal |
+
+**Never drag a "Showed" step.** There isn't one, and a `showed` stage is ignored.
 
 ## Column → what gets recorded
 
@@ -15,11 +23,11 @@ No Show means it didn't.
 |---|---|---|---|
 | For Qualification | `for_qualification` | `for_qualification_at` | — |
 | Qualified | `qualified` | `qualified_at` | — |
-| Booked Call | `booked` | `booked_at` | no |
-| Rescheduled | `rescheduled` | `rescheduled_at` | no — still booked |
-| No Show | `no_show` | `no_show_at` | no |
+| Booked Call | `booked` | `booked_at` | pending |
+| Rescheduled | `rescheduled` | `rescheduled_at` | pending — still booked |
+| No Show | `no_show` | `no_show_at` | no — no-show |
 | Proposal Sent | `proposal_sent` | `proposal_sent_at` | **yes** |
-| Lost | `lost` | `lost_at` | **yes** (post-call only) |
+| Lost | `lost` | `lost_at` | no — no-show (lost deal if a proposal was sent) |
 | Won | `won` | `won_at` | **yes** |
 
 Follow Up DM is not tracked — those leads are organic, and this reporting exists
@@ -27,9 +35,14 @@ to price paid traffic.
 
 ## The one thing that matters
 
-**Lost is for after a call.** If someone never showed up and went cold, they go
-to **No Show**, not Lost. The show rate is derived from Lost, so putting a
-no-show in Lost silently inflates it.
+**Move the card as soon as the call time passes.** The dashboard can't see when
+a call is scheduled — a card in Booked Call is always *pending*. Show rate and
+no-show rate count only calls with an outcome, so a missed call left in Booked
+never counts against the show rate. Held → Proposal Sent. Missed → No Show or Lost.
+
+**A held call always goes to Proposal Sent before Won or Lost.** If a call
+happened but the card goes straight from Booked to Lost, it's counted as a
+no-show.
 
 ## Edge cases, already handled
 
@@ -38,11 +51,13 @@ paid for. Move the card to Rescheduled, then back to Booked Call when the new
 time is set. Dragging backwards is safe: every stamp is first-occurrence-wins,
 so a timestamp can never move.
 
-**Missed, then attended.** They keep `no_show_at` *and* gain a held call. That's
+**Missed, then attended.** They keep `no_show_at` *and* gain a held call once
+they reach Proposal Sent. That's
 why there are two numbers:
 
 - **No-shows** — missed at least one call
-- **No-show rate** on the dashboard — missed and *never* made it to a call
+- **No-show rate** on the dashboard — No Show or Lost and *never* reached
+  Proposal Sent, as a share of calls that have an outcome (pending excluded)
 
 The second is the one that costs money. The first is a punctuality stat.
 
