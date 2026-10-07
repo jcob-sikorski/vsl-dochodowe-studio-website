@@ -38,6 +38,22 @@ const CAMPAIGN_IDS = (process.env.META_CAMPAIGN_IDS || "")
   .map((s) => s.trim())
   .filter(Boolean);
 
+/** Every ad status, so archived/deleted ads keep reporting their past spend. */
+const ALL_AD_STATUSES = [
+  "ACTIVE",
+  "PAUSED",
+  "DELETED",
+  "ARCHIVED",
+  "PENDING_REVIEW",
+  "DISAPPROVED",
+  "PREAPPROVED",
+  "PENDING_BILLING_INFO",
+  "CAMPAIGN_PAUSED",
+  "ADSET_PAUSED",
+  "IN_PROCESS",
+  "WITH_ISSUES",
+];
+
 /** Meta keeps revising recent days; re-pull a short window every night. */
 const DEFAULT_LOOKBACK_DAYS = 3;
 const MAX_LOOKBACK_DAYS = 90;
@@ -115,38 +131,50 @@ export async function GET(request: Request) {
     access_token: ACCESS_TOKEN,
   });
 
-  // Ask Meta for this campaign only — cheaper than paging the account and
-  // throwing most of it away, and it keeps `ad_spend` free of foreign rows.
-  if (CAMPAIGN_IDS.length) {
-    params.set(
-      "filtering",
-      JSON.stringify([{ field: "campaign.id", operator: "IN", value: CAMPAIGN_IDS }])
-    );
-  }
+  // Insights silently drop ARCHIVED and DELETED ads unless asked for them by
+  // status. Without this, archiving ads or a campaign freezes its last partial
+  // day in `ad_spend` (the nightly re-pull returns nothing for it), and any
+  // backfill after archiving loses that spend entirely.
+  params.set(
+    "filtering",
+    JSON.stringify([{ field: "ad.effective_status", operator: "IN", value: ALL_AD_STATUSES }])
+  );
 
-  let next: string | null = `https://graph.facebook.com/${GRAPH_VERSION}/${account}/insights?${params}`;
+  // One insights call per configured campaign, on the campaign node itself.
+  // An account-level call filtered by campaign.id returns NOTHING for an
+  // archived campaign even with the status filter above — querying the
+  // campaign directly is the only form that keeps its history. With no
+  // campaigns configured, pull the whole ad account (the old behaviour).
+  const nodes = CAMPAIGN_IDS.length ? CAMPAIGN_IDS : [account];
+
   const rows: InsightRow[] = [];
   let pages = 0;
 
   try {
-    // Bounded so a paging bug can never spin forever inside a cron.
-    while (next && pages < 25) {
-      const res: Response = await fetchWithRetry(next, { method: "GET" }, {
-        label: "meta-insights",
-        attempts: 3,
-        timeoutMs: 20_000,
-      });
+    for (const node of nodes) {
+      let next: string | null = `https://graph.facebook.com/${GRAPH_VERSION}/${node}/insights?${params}`;
+      let nodePages = 0;
 
-      if (!res.ok) {
-        const body = await safeText(res, 600);
-        console.error(`[spend] insights HTTP ${res.status}: ${body}`);
-        return json({ ok: false, error: `http_${res.status}`, detail: body }, 502);
+      // Bounded so a paging bug can never spin forever inside a cron.
+      while (next && nodePages < 25) {
+        const res: Response = await fetchWithRetry(next, { method: "GET" }, {
+          label: "meta-insights",
+          attempts: 3,
+          timeoutMs: 20_000,
+        });
+
+        if (!res.ok) {
+          const body = await safeText(res, 600);
+          console.error(`[spend] insights HTTP ${res.status} for ${node}: ${body}`);
+          return json({ ok: false, error: `http_${res.status}`, node, detail: body }, 502);
+        }
+
+        const page = await safeJson<{ data?: InsightRow[]; paging?: { next?: string } }>(res);
+        if (page?.data?.length) rows.push(...page.data);
+        next = page?.paging?.next ?? null;
+        nodePages++;
+        pages++;
       }
-
-      const page = await safeJson<{ data?: InsightRow[]; paging?: { next?: string } }>(res);
-      if (page?.data?.length) rows.push(...page.data);
-      next = page?.paging?.next ?? null;
-      pages++;
     }
   } catch (err) {
     console.error("[spend] insights fetch failed:", err);

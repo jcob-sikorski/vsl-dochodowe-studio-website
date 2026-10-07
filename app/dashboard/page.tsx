@@ -165,6 +165,15 @@ export default async function DashboardPage({
 
   const abRows = (ab.error ? [] : ((ab.data ?? []) as AbRow[])).filter((r) => r.variant_id);
 
+  // Data problems that would make the numbers below wrong. Never blocks the page.
+  const health = await loadHealth(supabase, {
+    from,
+    to,
+    traffic,
+    rows,
+    abActive: abRows.length > 0,
+  });
+
   const totals: Totals = rows.reduce<Totals>(
     (acc, r) => ({
       spend: acc.spend + n(r.spend),
@@ -251,6 +260,8 @@ export default async function DashboardPage({
 
   return (
     <Shell from={from} to={to} range={range} traffic={traffic}>
+      <HealthStrip items={health} />
+
       {/* ---- headline economics ------------------------------------- */}
       <section className="tiles" aria-label="Headline metrics">
         <Tile label="Spend" value={pln.format(totals.spend)} />
@@ -313,6 +324,14 @@ export default async function DashboardPage({
       <h2 className="h2">Headline test · {HEADLINE_EXPERIMENT.id}</h2>
       <AbTest rows={abRows} error={ab.error?.message} traffic={traffic} />
 
+      {/* ---- per-ad-set table ---------------------------------------- */}
+      {rows.length > 0 && (
+        <>
+          <h2 className="h2">By ad set</h2>
+          <AdSetTable rows={rows} />
+        </>
+      )}
+
       {/* ---- per-ad table -------------------------------------------- */}
       <h2 className="h2">By ad</h2>
       {rows.length === 0 ? (
@@ -357,8 +376,20 @@ export default async function DashboardPage({
                 return (
                   <tr key={`${r.ad_id ?? "none"}-${i}`}>
                     <th scope="row" className="left">
-                      <span className="adname">{r.ad_name || r.ad_id || "(no ad id)"}</span>
-                      {r.campaign_name && <span className="sub">{r.campaign_name}</span>}
+                      {r.ad_id === NO_AD_ID ? (
+                        <>
+                          <span className="adname">Unattributed</span>
+                          <span className="sub">no ad ID in the landing URL</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="adname">{r.ad_name || r.ad_id}</span>
+                          <span className="sub">
+                            {[r.campaign_name, r.adset_name].filter(Boolean).join(" · ") ||
+                              "no spend tracked for this ad"}
+                          </span>
+                        </>
+                      )}
                     </th>
                     <td>{pln.format(spend)}</td>
                     <td>{int.format(leads)}</td>
@@ -569,9 +600,345 @@ function AbTest({
         stopping the moment a number goes green is how a coin flip gets promoted to
         a strategy &mdash; let it run. Visitors are counted by first visit and opt&#8209;ins by
         opt&#8209;in date, so someone who arrives on the last day of a range and converts
-        the next morning lands in the denominator here and the numerator later.
+        the next morning lands in the denominator here and the numerator later. Meta
+        also loads the page itself whenever new ads are published; those visits count as
+        visitors but never opt in, which is flagged at the top of the page when it happens.
       </p>
     </>
+  );
+}
+
+/* -------------------------------------------------------------------------- *
+ * Data health
+ *
+ * Each check catches a way the numbers on this page can be silently wrong. The
+ * strip renders nothing when everything is fine, so a visible warning always
+ * means "fix the data before trusting the tiles".
+ * -------------------------------------------------------------------------- */
+
+const NO_AD_ID = "(no ad id)";
+
+type HealthItem = { tone: "critical" | "warning" | "info"; title: string; body: string };
+type Db = NonNullable<ReturnType<typeof getSupabase>>;
+
+const whenFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Warsaw",
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const dayFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numeric", month: "short" });
+const fmtDay = (iso: string) => dayFmt.format(new Date(`${iso}T12:00:00Z`));
+
+/** Pages past PostgREST's 1000-row cap. */
+async function fetchAll<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < 50; i++) {
+    const { data, error } = await page(i * 1000, i * 1000 + 999);
+    if (error) throw new Error(error.message);
+    out.push(...((data ?? []) as T[]));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+async function loadHealth(
+  supabase: Db,
+  opts: { from: string; to: string; traffic: string; rows: ReportRow[]; abActive: boolean }
+): Promise<HealthItem[]> {
+  const items: HealthItem[] = [];
+  // Same day boundaries funnel_report uses.
+  const fromTs = `${opts.from}T00:00:00Z`;
+  const toTs = `${isoDate(new Date(Date.parse(opts.to) + 86_400_000))}T00:00:00Z`;
+
+  // 1. Is the nightly spend sync still writing anything?
+  try {
+    const { data } = await supabase
+      .from("ad_spend")
+      .select("date, synced_at")
+      .order("synced_at", { ascending: false })
+      .limit(1);
+    const last = (data?.[0] ?? null) as { date: string; synced_at: string } | null;
+
+    if (!last) {
+      items.push({
+        tone: "critical",
+        title: "No ad spend has been synced yet",
+        body: "Every cost on this page is zero until the spend sync runs. Trigger /api/cron/meta-spend?days=30.",
+      });
+    } else {
+      const hours = (Date.now() - Date.parse(last.synced_at)) / 3_600_000;
+      if (hours > 30) {
+        items.push({
+          tone: "warning",
+          title: `Spend last synced ${whenFmt.format(new Date(last.synced_at))}`,
+          body:
+            `The nightly sync hasn't written any spend for ${Math.floor(hours / 24)} days (newest spend day: ` +
+            `${fmtDay(last.date)}). If ads are running, their campaign is probably missing from ` +
+            "META_CAMPAIGN_IDS, and every cost on this page is understated until it's added.",
+        });
+      }
+    }
+  } catch {
+    /* a failed check must never take the dashboard down */
+  }
+
+  // 2. Leads from ads whose spend isn't being synced.
+  const untracked = opts.rows.filter(
+    (r) => r.ad_id && r.ad_id !== NO_AD_ID && n(r.spend) === 0 && n(r.leads) > 0
+  );
+  if (untracked.length > 0) {
+    try {
+      let q = supabase
+        .from("leads")
+        .select("campaign_id, utm_campaign")
+        .in("ad_id", untracked.map((r) => r.ad_id as string))
+        .gte("opted_in_at", fromTs)
+        .lt("opted_in_at", toTs);
+      if (opts.traffic !== "all") q = q.eq("traffic_type", opts.traffic);
+      const { data } = await q;
+
+      const byCampaign = new Map<string, { count: number; name?: string }>();
+      for (const l of (data ?? []) as { campaign_id: string | null; utm_campaign: string | null }[]) {
+        const id = l.campaign_id ?? "unknown";
+        const entry = byCampaign.get(id) ?? { count: 0 };
+        entry.count++;
+        if (!entry.name && l.utm_campaign) entry.name = l.utm_campaign.replace(/\+/g, " ");
+        byCampaign.set(id, entry);
+      }
+
+      const total = untracked.reduce((sum, r) => sum + n(r.leads), 0);
+      const parts = [...byCampaign.entries()]
+        .sort((a, b) => b[1].count - a[1].count)
+        .map(([id, e]) =>
+          id.includes("{{")
+            ? `${e.count} from an ad whose campaign ID URL parameter was never filled in`
+            : `${e.count} from campaign ${id}${e.name ? ` (“${e.name}”)` : ""}`
+        );
+
+      items.push({
+        tone: "critical",
+        title: `${int.format(total)} leads came from ads with no spend tracked in this range`,
+        body:
+          `${parts.join("; ")}. Cost per lead, per call and per purchase are understated and ROAS is ` +
+          "overstated. Add the campaign ID to META_CAMPAIGN_IDS in Vercel, redeploy, then run " +
+          "/api/cron/meta-spend?days=30.",
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // 3. Paid leads that can't be credited to any ad.
+  const unattributed = opts.rows.find((r) => r.ad_id === NO_AD_ID);
+  if (opts.traffic === "paid" && unattributed && n(unattributed.leads) > 0) {
+    items.push({
+      tone: "info",
+      title: `${int.format(n(unattributed.leads))} paid leads have no ad ID`,
+      body:
+        "They count in the totals but can't be credited to any ad or ad set. Usually an ad missing " +
+        "ad_id={{ad.id}} in its URL parameters, or an organic Facebook/Instagram link (Meta adds a " +
+        "click ID to those too).",
+    });
+  }
+
+  // 4. Headline-test visitors that are Meta's ad review, not people.
+  if (opts.abActive) {
+    try {
+      const views = await fetchAll<{ first_seen_at: string }>((a, b) =>
+        supabase
+          .from("ab_views")
+          .select("first_seen_at")
+          .eq("experiment_id", HEADLINE_EXPERIMENT.id)
+          .eq("traffic_type", "paid")
+          .gte("first_seen_at", fromTs)
+          .lt("first_seen_at", toTs)
+          .order("first_seen_at")
+          .range(a, b)
+      );
+      const spend = await fetchAll<{ date: string; clicks: number | string }>((a, b) =>
+        supabase
+          .from("ad_spend")
+          .select("date, clicks")
+          .gte("date", opts.from)
+          .lte("date", opts.to)
+          .order("date")
+          .range(a, b)
+      );
+
+      const viewsByDay = new Map<string, number>();
+      for (const v of views) {
+        const d = v.first_seen_at.slice(0, 10);
+        viewsByDay.set(d, (viewsByDay.get(d) ?? 0) + 1);
+      }
+      const clicksByDay = new Map<string, number>();
+      for (const s of spend) clicksByDay.set(s.date, (clicksByDay.get(s.date) ?? 0) + n(s.clicks));
+
+      // A real visit needs a click. Far more visits than clicks means a robot.
+      const flagged = [...viewsByDay.entries()]
+        .filter(([d, count]) => clicksByDay.has(d) && count > 2 * (clicksByDay.get(d) ?? 0) + 50)
+        .sort(([a], [b]) => a.localeCompare(b));
+
+      if (flagged.length > 0) {
+        const v = flagged.reduce((sum, [, count]) => sum + count, 0);
+        const c = flagged.reduce((sum, [d]) => sum + (clicksByDay.get(d) ?? 0), 0);
+        items.push({
+          tone: "warning",
+          title: `Headline-test visitors inflated on ${flagged.map(([d]) => fmtDay(d)).join(", ")}`,
+          body:
+            `${int.format(v)} paid visits were logged against ${int.format(c)} Meta ad clicks on those ` +
+            "days — Meta reviewing newly published ads, not people. They're split evenly across the " +
+            "variants, so the comparison holds, but every opt-in rate reads lower than it really is.",
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const order = { critical: 0, warning: 1, info: 2 };
+  return items.sort((a, b) => order[a.tone] - order[b.tone]);
+}
+
+function HealthStrip({ items }: { items: HealthItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section className="health" aria-label="Data problems">
+      {items.map((item) => (
+        <div key={item.title} className={`notice ${item.tone}`} role={item.tone === "critical" ? "alert" : undefined}>
+          <strong>{item.title}</strong>
+          <span>{item.body}</span>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- *
+ * By ad set — where ABO budget decisions are made.
+ * -------------------------------------------------------------------------- */
+
+function AdSetTable({ rows }: { rows: ReportRow[] }) {
+  type Group = {
+    key: string;
+    label: string;
+    sub: string;
+    ads: number;
+    spend: number;
+    leads: number;
+    booked: number;
+    showed: number;
+    noShowsFinal: number;
+    won: number;
+    revenue: number;
+  };
+
+  const groups = new Map<string, Group>();
+  for (const r of rows) {
+    const unattributed = r.ad_id === NO_AD_ID;
+    const key = unattributed
+      ? "~unattributed"
+      : r.adset_name
+        ? `${r.campaign_name ?? ""}|${r.adset_name}`
+        : "~nospend";
+
+    const g: Group = groups.get(key) ?? {
+      key,
+      label: unattributed ? "Unattributed" : (r.adset_name ?? "Ads with no spend tracked"),
+      sub: unattributed
+        ? "no ad ID in the landing URL"
+        : r.adset_name
+          ? (r.campaign_name ?? "")
+          : "campaign missing from the spend sync",
+      ads: 0,
+      spend: 0,
+      leads: 0,
+      booked: 0,
+      showed: 0,
+      noShowsFinal: 0,
+      won: 0,
+      revenue: 0,
+    };
+
+    if (!unattributed && n(r.spend) > 0) g.ads++;
+    g.spend += n(r.spend);
+    g.leads += n(r.leads);
+    g.booked += n(r.booked);
+    g.showed += n(r.showed);
+    g.noShowsFinal += n(r.no_shows_final);
+    g.won += n(r.won);
+    g.revenue += n(r.revenue);
+    groups.set(key, g);
+  }
+
+  // Real ad sets by spend; the two catch-all rows always last.
+  const list = [...groups.values()].sort(
+    (a, b) => Number(a.key.startsWith("~")) - Number(b.key.startsWith("~")) || b.spend - a.spend
+  );
+
+  return (
+    <div className="tablewrap">
+      <table className="table">
+        <thead>
+          <tr>
+            <th scope="col" className="left">Ad set</th>
+            <th scope="col">Ads</th>
+            <th scope="col">Spend</th>
+            <th scope="col">Leads</th>
+            <th scope="col">Booked</th>
+            <th scope="col">Showed</th>
+            <th scope="col">Pending</th>
+            <th scope="col">Show&nbsp;rate</th>
+            <th scope="col">Won</th>
+            <th scope="col">CP&nbsp;lead</th>
+            <th scope="col">CP&nbsp;booked</th>
+            <th scope="col">CP&nbsp;show</th>
+            <th scope="col">CP&nbsp;purchase</th>
+            <th scope="col">Revenue</th>
+            <th scope="col">ROAS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((g) => {
+            const calls = callOutcomes(g.booked, g.showed, g.noShowsFinal);
+            const groupRoas = rate(g.revenue, g.spend);
+            return (
+              <tr key={g.key}>
+                <th scope="row" className="left">
+                  <span className="adname">{g.label}</span>
+                  {g.sub && <span className="sub">{g.sub}</span>}
+                </th>
+                <td>{g.ads > 0 ? int.format(g.ads) : "—"}</td>
+                <td>{pln.format(g.spend)}</td>
+                <td>{int.format(g.leads)}</td>
+                <td>{int.format(g.booked)}</td>
+                <td>{int.format(g.showed)}</td>
+                <td>{int.format(calls.pending)}</td>
+                <td>{pct(calls.showRate)}</td>
+                <td>{int.format(g.won)}</td>
+                <td>{cost(g.spend, g.leads)}</td>
+                <td>{cost(g.spend, g.booked)}</td>
+                <td>{cost(g.spend, g.showed)}</td>
+                <td>{cost(g.spend, g.won)}</td>
+                <td>{pln.format(g.revenue)}</td>
+                <td>
+                  {groupRoas === undefined ? (
+                    "—"
+                  ) : (
+                    <span className={`roas ${groupRoas >= 3 ? "good" : groupRoas >= 1 ? "warning" : "critical"}`}>
+                      {groupRoas.toFixed(2)}×
+                    </span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -1212,6 +1579,13 @@ const CSS = `
 }
 .notice strong { color: var(--text-primary); font-weight: 600; }
 .notice.critical { border-left-color: var(--critical); }
+.notice.warning { border-left-color: var(--warning); }
+
+/* ---- data health strip -------------------------------------------------- */
+.health { display: grid; gap: 8px; margin: 4px 0 18px; }
+.health .notice { padding: 12px 16px; line-height: 1.55; }
+.health .notice.critical strong { color: var(--critical); }
+.health .notice.warning strong { color: var(--warning); }
 
 .foot {
   margin-top: 26px; font-size: 11.5px; line-height: 1.7;
