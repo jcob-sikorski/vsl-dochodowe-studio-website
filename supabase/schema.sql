@@ -508,6 +508,36 @@ $$;
 -- judged on mixed traffic is really being judged on whichever traffic mix it
 -- happened to get.
 -- ---------------------------------------------------------------------------
+-- Meta's ad review loads the page in bursts whenever ads are published; those
+-- visits are scored here and left out of the test. See migration 2026-10-07.
+create or replace view public.ab_views_scored
+with (security_invoker = true) as
+with hourly as (
+  select
+    v.experiment_id,
+    date_trunc('hour', v.first_seen_at)          as hr,
+    count(distinct v.id)                         as visitors,
+    count(distinct v.id) filter (where v.views > 1) as returning_visitors,
+    count(distinct l.id)                         as opt_ins
+  from public.ab_views v
+  left join public.leads l
+    on l.ab_experiment_id = v.experiment_id
+   and l.ab_visitor_id    = v.visitor_id
+  group by 1, 2
+)
+select
+  v.*,
+  (h.visitors >= 20 and h.returning_visitors = 0 and h.opt_ins = 0) as is_review_burst
+from public.ab_views v
+join hourly h
+  on h.experiment_id = v.experiment_id
+ and h.hr            = date_trunc('hour', v.first_seen_at);
+
+revoke all on public.ab_views_scored from anon, authenticated;
+grant select on public.ab_views_scored to service_role;
+
+drop function if exists public.ab_report(date, date, text, text);
+
 create or replace function public.ab_report(
   p_from       date,
   p_to         date,
@@ -515,15 +545,16 @@ create or replace function public.ab_report(
   p_experiment text default null
 )
 returns table (
-  experiment_id text,
-  variant_id    text,
-  views         bigint,
-  leads         bigint,
-  qualified     bigint,
-  booked        bigint,
-  showed        bigint,
-  won           bigint,
-  revenue       numeric
+  experiment_id  text,
+  variant_id     text,
+  views          bigint,
+  excluded_views bigint,
+  leads          bigint,
+  qualified      bigint,
+  booked         bigint,
+  showed         bigint,
+  won            bigint,
+  revenue        numeric
 )
 language sql
 stable
@@ -534,8 +565,9 @@ as $$
     select
       x.experiment_id,
       x.variant_id,
-      count(*)::bigint as views
-    from public.ab_views x
+      count(*) filter (where not x.is_review_burst)::bigint as views,
+      count(*) filter (where x.is_review_burst)::bigint     as excluded_views
+    from public.ab_views_scored x
     where x.first_seen_at >= p_from::timestamptz
       and x.first_seen_at <  (p_to + 1)::timestamptz
       and (p_traffic = 'all' or x.traffic_type = p_traffic)
@@ -580,6 +612,7 @@ as $$
     coalesce(v.experiment_id, l.experiment_id) as experiment_id,
     coalesce(v.variant_id, l.variant_id)       as variant_id,
     coalesce(v.views, 0)                       as views,
+    coalesce(v.excluded_views, 0)              as excluded_views,
     coalesce(l.leads, 0)                       as leads,
     coalesce(l.qualified, 0)                   as qualified,
     coalesce(l.booked, 0)                      as booked,
@@ -592,3 +625,8 @@ as $$
    and v.variant_id    = l.variant_id
   order by 1, 2;
 $$;
+
+-- Server-only, like everything else here. Recreating the function reset its
+-- grants to Supabase's defaults, which include the public anon role.
+revoke execute on function public.ab_report(date, date, text, text) from public, anon, authenticated;
+grant execute on function public.ab_report(date, date, text, text) to service_role;

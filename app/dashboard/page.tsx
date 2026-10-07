@@ -44,6 +44,8 @@ interface AbRow {
   experiment_id: string | null;
   variant_id: string | null;
   views: number | string;
+  /** Meta ad-review visits left out of `views` (see ab_views_scored). */
+  excluded_views?: number | string;
   leads: number | string;
   qualified: number | string;
   booked: number | string;
@@ -513,12 +515,21 @@ function AbTest({
   const controlRate = rate(controlLeads, controlViews);
 
   const totalViews = sorted.reduce((sum, r) => sum + n(r.views), 0);
+  const totalExcluded = sorted.reduce((sum, r) => sum + n(r.excluded_views), 0);
   const totalLeads = sorted.reduce((sum, r) => sum + n(r.leads), 0);
 
   return (
     <>
       <section className="tiles" aria-label="Split test headline metrics">
-        <Tile label="Visitors bucketed" value={int.format(totalViews)} note="unique browsers" />
+        <Tile
+          label="Visitors bucketed"
+          value={int.format(totalViews)}
+          note={
+            totalExcluded > 0
+              ? `unique browsers · ${int.format(totalExcluded)} ad-review visits excluded`
+              : "unique browsers"
+          }
+        />
         <Tile label="Opt-ins" value={int.format(totalLeads)} />
         <Tile
           label="Opt-in rate"
@@ -601,8 +612,9 @@ function AbTest({
         a strategy &mdash; let it run. Visitors are counted by first visit and opt&#8209;ins by
         opt&#8209;in date, so someone who arrives on the last day of a range and converts
         the next morning lands in the denominator here and the numerator later. Meta
-        also loads the page itself whenever new ads are published; those visits count as
-        visitors but never opt in, which is flagged at the top of the page when it happens.
+        also loads the page itself whenever new ads are published. A visit only counts once the
+        visitor scrolls, taps or keeps the page open for a few seconds, and any hour with 20+
+        visitors where nobody returned or opted in is excluded as ad review.
       </p>
     </>
   );
@@ -672,12 +684,18 @@ async function loadHealth(
     } else {
       const hours = (Date.now() - Date.parse(last.synced_at)) / 3_600_000;
       if (hours > 30) {
+        const { data: newest } = await supabase
+          .from("ad_spend")
+          .select("date")
+          .order("date", { ascending: false })
+          .limit(1);
+        const newestDay = (newest?.[0] as { date: string } | undefined)?.date ?? last.date;
         items.push({
           tone: "warning",
           title: `Spend last synced ${whenFmt.format(new Date(last.synced_at))}`,
           body:
             `The nightly sync hasn't written any spend for ${Math.floor(hours / 24)} days (newest spend day: ` +
-            `${fmtDay(last.date)}). If ads are running, their campaign is probably missing from ` +
+            `${fmtDay(newestDay)}). If ads are running, their campaign is probably missing from ` +
             "META_CAMPAIGN_IDS, and every cost on this page is understated until it's added.",
         });
       }
@@ -746,19 +764,32 @@ async function loadHealth(
   }
 
   // 4. Headline-test visitors that are Meta's ad review, not people.
+  //    ab_views_scored marks review bursts (the one place that rule lives);
+  //    ab_report already leaves them out. Here we say how many were dropped,
+  //    and warn only if a burst got past the rule — visits far above clicks.
   if (opts.abActive) {
     try {
-      const views = await fetchAll<{ first_seen_at: string }>((a, b) =>
+      type ScoredView = { first_seen_at: string; is_review_burst: boolean };
+      const page = (table: "ab_views_scored" | "ab_views", cols: string) => (a: number, b: number) =>
         supabase
-          .from("ab_views")
-          .select("first_seen_at")
+          .from(table)
+          .select(cols)
           .eq("experiment_id", HEADLINE_EXPERIMENT.id)
           .eq("traffic_type", "paid")
           .gte("first_seen_at", fromTs)
           .lt("first_seen_at", toTs)
           .order("first_seen_at")
-          .range(a, b)
-      );
+          .range(a, b);
+
+      let views: ScoredView[];
+      try {
+        views = await fetchAll<ScoredView>(page("ab_views_scored", "first_seen_at, is_review_burst"));
+      } catch {
+        // Migration 2026-10-07 not applied yet: score nothing, still compare to clicks.
+        const raw = await fetchAll<{ first_seen_at: string }>(page("ab_views", "first_seen_at"));
+        views = raw.map((v) => ({ ...v, is_review_burst: false }));
+      }
+
       const spend = await fetchAll<{ date: string; clicks: number | string }>((a, b) =>
         supabase
           .from("ad_spend")
@@ -769,9 +800,16 @@ async function loadHealth(
           .range(a, b)
       );
 
+      const excludedDays = new Set<string>();
+      let excluded = 0;
       const viewsByDay = new Map<string, number>();
       for (const v of views) {
         const d = v.first_seen_at.slice(0, 10);
+        if (v.is_review_burst) {
+          excluded++;
+          excludedDays.add(d);
+          continue;
+        }
         viewsByDay.set(d, (viewsByDay.get(d) ?? 0) + 1);
       }
       const clicksByDay = new Map<string, number>();
@@ -789,9 +827,21 @@ async function loadHealth(
           tone: "warning",
           title: `Headline-test visitors inflated on ${flagged.map(([d]) => fmtDay(d)).join(", ")}`,
           body:
-            `${int.format(v)} paid visits were logged against ${int.format(c)} Meta ad clicks on those ` +
-            "days — Meta reviewing newly published ads, not people. They're split evenly across the " +
-            "variants, so the comparison holds, but every opt-in rate reads lower than it really is.",
+            `${int.format(v)} paid visits were counted against ${int.format(c)} Meta ad clicks on those ` +
+            "days, and the ad-review filter didn't catch them. They're split evenly across the variants, " +
+            "so the comparison holds, but every opt-in rate reads lower than it really is.",
+        });
+      }
+
+      if (excluded > 0) {
+        const days = [...excludedDays].sort().map(fmtDay).join(", ");
+        items.push({
+          tone: "info",
+          title: `${int.format(excluded)} ad-review visits excluded from the headline test`,
+          body:
+            `Meta loads the page hundreds of times whenever ads are published (${days}). Hours with ` +
+            "20+ visitors where nobody returned or opted in are left out, so the opt-in rates below " +
+            "reflect people.",
         });
       }
     } catch {
