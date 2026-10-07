@@ -650,7 +650,8 @@ function AbTest({
 
 const NO_AD_ID = "(no ad id)";
 
-type HealthItem = { tone: "critical" | "warning" | "info"; title: string; body: string };
+/** title: the fact, one line. hint: what to do, a few words. body: the why, on demand. */
+type HealthItem = { tone: "critical" | "warning" | "info"; title: string; hint: string; body: string };
 type Db = NonNullable<ReturnType<typeof getSupabase>>;
 
 const whenFmt = new Intl.DateTimeFormat("en-GB", {
@@ -698,7 +699,8 @@ async function loadHealth(
     if (!last) {
       items.push({
         tone: "critical",
-        title: "No ad spend has been synced yet",
+        title: "No ad spend synced yet",
+        hint: "every cost reads zero",
         body: "Every cost on this page is zero until the spend sync runs. Trigger /api/cron/meta-spend?days=30.",
       });
     } else {
@@ -713,6 +715,7 @@ async function loadHealth(
         items.push({
           tone: "warning",
           title: `Spend last synced ${whenFmt.format(new Date(last.synced_at))}`,
+          hint: "costs understated — check META_CAMPAIGN_IDS",
           body:
             `The nightly sync hasn't written any spend for ${Math.floor(hours / 24)} days (newest spend day: ` +
             `${fmtDay(newestDay)}). If ads are running, their campaign is probably missing from ` +
@@ -759,7 +762,8 @@ async function loadHealth(
 
       items.push({
         tone: "critical",
-        title: `${int.format(total)} leads came from ads with no spend tracked in this range`,
+        title: `${int.format(total)} leads from ads with no spend tracked`,
+        hint: "costs understated — add the campaign to the sync",
         body:
           `${parts.join("; ")}. Cost per lead, per call and per purchase are understated and ROAS is ` +
           "overstated. Add the campaign ID to META_CAMPAIGN_IDS in Vercel, redeploy, then run " +
@@ -775,7 +779,8 @@ async function loadHealth(
   if (stale > 0) {
     items.push({
       tone: "warning",
-      title: `${int.format(stale)} calls still in Booked Call a week after booking`,
+      title: `${int.format(stale)} calls still in Booked Call after a week`,
+      hint: "move the cards in GHL",
       body:
         "Those calls have almost certainly happened. Move each card to No Show, Lost, Proposal " +
         "Sent or Won — or back to For Qualification if the call never took place. Until then " +
@@ -788,7 +793,8 @@ async function loadHealth(
   if (opts.traffic === "paid" && unattributed && n(unattributed.leads) > 0) {
     items.push({
       tone: "info",
-      title: `${int.format(n(unattributed.leads))} paid leads have no ad ID`,
+      title: `${int.format(n(unattributed.leads))} paid leads without an ad ID`,
+      hint: "counted in totals, not credited to any ad",
       body:
         "They count in the totals but can't be credited to any ad or ad set. Usually an ad missing " +
         "ad_id={{ad.id}} in its URL parameters, or an organic Facebook/Instagram link (Meta adds a " +
@@ -858,7 +864,8 @@ async function loadHealth(
         const c = flagged.reduce((sum, [d]) => sum + (clicksByDay.get(d) ?? 0), 0);
         items.push({
           tone: "warning",
-          title: `Headline-test visitors inflated on ${flagged.map(([d]) => fmtDay(d)).join(", ")}`,
+          title: `Headline-test visits inflated · ${flagged.map(([d]) => fmtDay(d)).join(", ")}`,
+          hint: "the ad-review filter missed them",
           body:
             `${int.format(v)} paid visits were counted against ${int.format(c)} Meta ad clicks on those ` +
             "days, and the ad-review filter didn't catch them. They're split evenly across the variants, " +
@@ -870,7 +877,8 @@ async function loadHealth(
         const days = [...excludedDays].sort().map(fmtDay).join(", ");
         items.push({
           tone: "info",
-          title: `${int.format(excluded)} ad-review visits excluded from the headline test`,
+          title: `${int.format(excluded)} ad-review visits excluded`,
+          hint: `headline test · ${days}`,
           body:
             `Meta loads the page hundreds of times whenever ads are published (${days}). Hours with ` +
             "20+ visitors where nobody returned or opted in are left out, so the opt-in rates below " +
@@ -886,15 +894,24 @@ async function loadHealth(
   return items.sort((a, b) => order[a.tone] - order[b.tone]);
 }
 
+/**
+ * One quiet line per issue: dot, fact, what to do. The explanation opens on
+ * click, so a healthy-ish page doesn't spend half a screen on caveats.
+ */
 function HealthStrip({ items }: { items: HealthItem[] }) {
   if (items.length === 0) return null;
   return (
     <section className="health" aria-label="Data problems">
       {items.map((item) => (
-        <div key={item.title} className={`notice ${item.tone}`} role={item.tone === "critical" ? "alert" : undefined}>
-          <strong>{item.title}</strong>
-          <span>{item.body}</span>
-        </div>
+        <details key={item.title} className={`hrow ${item.tone}`}>
+          <summary>
+            <i className="hdot" aria-hidden="true" />
+            <span className="htitle">{item.title}</span>
+            <span className="hhint">{item.hint}</span>
+            <span className="hmore" aria-hidden="true" />
+          </summary>
+          <p>{item.body}</p>
+        </details>
       ))}
     </section>
   );
@@ -1459,7 +1476,7 @@ const CSS = `
 }
 .h2 {
   display: flex; align-items: center; gap: 10px;
-  margin: 34px 0 10px; font-size: 10.5px; font-weight: 600;
+  margin-block: 34px 10px; font-size: 10.5px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.11em;
   color: var(--text-muted);
 }
@@ -1667,10 +1684,50 @@ const CSS = `
 .notice.warning { border-left-color: var(--warning); }
 
 /* ---- data health strip -------------------------------------------------- */
-.health { display: grid; gap: 8px; margin: 4px 0 18px; }
-.health .notice { padding: 12px 16px; line-height: 1.55; }
-.health .notice.critical strong { color: var(--critical); }
-.health .notice.warning strong { color: var(--warning); }
+/* margin-block only: a margin shorthand would cancel the column's auto inline
+   margins and pin the strip to the page edge. */
+.health {
+  margin-block: 0 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.hrow + .hrow { border-top: 1px solid var(--border); }
+.hrow > summary {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 34px; padding: 7px 14px;
+  font-size: 12px; line-height: 1.4;
+  list-style: none; cursor: pointer;
+  transition: background 100ms ease;
+}
+.hrow > summary::-webkit-details-marker { display: none; }
+.hrow > summary:hover { background: var(--panel-hover); }
+.hdot { width: 6px; height: 6px; border-radius: 999px; flex: none; background: var(--text-muted); }
+.hrow.critical .hdot { background: var(--critical); }
+.hrow.warning .hdot { background: var(--warning); }
+.htitle {
+  color: var(--text-primary); font-weight: 550; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.hrow.info .htitle { color: var(--text-secondary); font-weight: 500; }
+.hhint {
+  flex: 1; min-width: 0;
+  color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hhint::before { content: "— "; }
+.hmore {
+  flex: none; width: 7px; height: 7px; margin-left: auto;
+  border-right: 1.5px solid var(--text-muted); border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 120ms ease;
+}
+.hrow[open] .hmore { transform: rotate(-135deg) translateY(-1px); }
+.hrow > p {
+  margin: 0; padding: 0 14px 11px 30px; max-width: 92ch;
+  font-size: 12px; line-height: 1.55; color: var(--text-secondary);
+}
 
 .foot {
   margin-top: 26px; font-size: 11.5px; line-height: 1.7;
@@ -1682,5 +1739,7 @@ const CSS = `
   .head { align-items: flex-start; }
   .funnel-row { grid-template-columns: 124px 1fr; gap: 10px; }
   .funnel-rate { grid-column: 2; text-align: left; padding-left: 2px; }
+  .hhint { display: none; }
+  .htitle { white-space: normal; }
 }
 `;
