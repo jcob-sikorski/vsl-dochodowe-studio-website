@@ -38,6 +38,13 @@ interface ReportRow {
   proposals_open: number | string;
   won: number | string;
   revenue: number | string;
+  /** Per call, rebuilt from the stage history (lead_calls). */
+  calls?: number | string;
+  calls_held?: number | string;
+  calls_no_show?: number | string;
+  calls_pending?: number | string;
+  calls_returned?: number | string;
+  calls_stale?: number | string;
 }
 
 interface AbRow {
@@ -70,6 +77,11 @@ interface Totals {
   proposalsOpen: number;
   won: number;
   revenue: number;
+  callsHeld: number;
+  callsNoShow: number;
+  callsPending: number;
+  callsReturned: number;
+  callsStale: number;
 }
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -193,24 +205,32 @@ export default async function DashboardPage({
       proposalsOpen: acc.proposalsOpen + n(r.proposals_open),
       won: acc.won + n(r.won),
       revenue: acc.revenue + n(r.revenue),
+      callsHeld: acc.callsHeld + n(r.calls_held),
+      callsNoShow: acc.callsNoShow + n(r.calls_no_show),
+      callsPending: acc.callsPending + n(r.calls_pending),
+      callsReturned: acc.callsReturned + n(r.calls_returned),
+      callsStale: acc.callsStale + n(r.calls_stale),
     }),
     {
       spend: 0, impressions: 0, clicks: 0, leads: 0, forQualification: 0,
       qualified: 0, booked: 0, rescheduled: 0, showed: 0, noShows: 0,
       noShowsFinal: 0, proposalSent: 0, proposalsOpen: 0, won: 0, revenue: 0,
+      callsHeld: 0, callsNoShow: 0, callsPending: 0, callsReturned: 0, callsStale: 0,
     }
   );
 
   const roas = rate(totals.revenue, totals.spend);
 
-  // Every booked call is in exactly one state, set by where the closer moved
-  // the card (see funnel_report):
-  //   held     — Proposal Sent or Won
-  //   missed   — No Show or Lost, never held
-  //   pending  — still in Booked Call / Rescheduled
-  // Show and no-show rates are measured against calls with an outcome only —
-  // dividing by every booking counts next week's calls as no-shows today.
-  const calls = callOutcomes(totals.booked, totals.showed, totals.noShowsFinal);
+  // Calls, not leads: every time a card enters Booked Call is one call, and
+  // where it goes next decides it (lead_calls in the database):
+  //   held      — Booked Call → Lost / Proposal Sent / Won
+  //   missed    — Booked Call → No Show
+  //   returned  — Booked Call → For Qualification (call never happened; ignored)
+  //   pending   — still in Booked Call
+  // A lead that misses, goes back to For Qualification and is rebooked counts
+  // as one missed call and one more call — exactly like the EOD report.
+  // Rates count only calls with an outcome: next week's calls aren't no-shows.
+  const calls = callOutcomes(totals.callsHeld, totals.callsNoShow, totals.callsPending);
   const pendingNote = calls.pending > 0 ? ` · ${int.format(calls.pending)} calls pending` : "";
 
   // While calls are pending or proposals are open, spend ÷ outcomes-so-far
@@ -242,8 +262,7 @@ export default async function DashboardPage({
     { label: "Qualified", value: totals.qualified },
     { label: "Booked", value: totals.booked },
     {
-      // Showed and Proposal sent are the same number by definition — one row.
-      label: "Showed · proposal sent",
+      label: "Showed",
       value: totals.showed,
       note:
         calls.pending > 0
@@ -277,7 +296,7 @@ export default async function DashboardPage({
         <Tile
           label="Show rate"
           value={pct(calls.showRate)}
-          note={`${int.format(totals.showed)} of ${int.format(calls.resolved)} past calls · ${int.format(calls.pending)} pending`}
+          note={`${int.format(totals.callsHeld)} of ${int.format(calls.resolved)} past calls · ${int.format(calls.pending)} pending`}
         />
         <Tile
           label="No-show rate"
@@ -291,7 +310,7 @@ export default async function DashboardPage({
                   ? "warning"
                   : "good"
           }
-          note={`${int.format(totals.noShowsFinal)} no-show or lost · ${int.format(totals.rescheduled)} rescheduled`}
+          note={`${int.format(totals.callsNoShow)} missed calls · ${int.format(totals.rescheduled)} leads booked again`}
         />
       </section>
 
@@ -373,7 +392,7 @@ export default async function DashboardPage({
                 const won = n(r.won);
                 const revenue = n(r.revenue);
                 const rowRoas = rate(revenue, spend);
-                const rowCalls = callOutcomes(booked, showed, n(r.no_shows_final));
+                const rowCalls = callOutcomes(n(r.calls_held), n(r.calls_no_show), n(r.calls_pending));
 
                 return (
                   <tr key={`${r.ad_id ?? "none"}-${i}`}>
@@ -447,10 +466,11 @@ export default async function DashboardPage({
       <p className="foot">
         Leads are counted by opt-in date; spend by the day it was spent. A deal that
         closes weeks after the click still counts against the click&rsquo;s date, so recent
-        ranges understate ROAS until the pipeline catches up. Call outcomes follow the
-        cards: Proposal Sent or Won is a held call, No Show or Lost is a missed one, and
-        a card still in Booked Call is pending. Show and no&#8209;show rates count only
-        calls with an outcome. While calls are pending or proposals are open, cost per
+        ranges understate ROAS until the pipeline catches up. Show rate is per call and
+        follows the cards: every move into Booked Call is a call; moving on to Lost,
+        Proposal Sent or Won makes it a held call, to No Show a missed one, and back to
+        For Qualification a call that never happened (left out). A card still in Booked
+        Call is pending, and rates count only calls with an outcome. While calls are pending or proposals are open, cost per
         show and per purchase show an estimate (~) that assumes the rest resolve at the
         rates seen so far; the real cost to date is in the note underneath. On a small
         number of calls the estimate moves a lot &mdash; treat it as a direction, not a price.
@@ -750,7 +770,20 @@ async function loadHealth(
     }
   }
 
-  // 3. Paid leads that can't be credited to any ad.
+  // 3. Calls whose card was probably never moved after the call.
+  const stale = opts.rows.reduce((sum, r) => sum + n(r.calls_stale), 0);
+  if (stale > 0) {
+    items.push({
+      tone: "warning",
+      title: `${int.format(stale)} calls still in Booked Call a week after booking`,
+      body:
+        "Those calls have almost certainly happened. Move each card to No Show, Lost, Proposal " +
+        "Sent or Won — or back to For Qualification if the call never took place. Until then " +
+        "they sit in \"pending\" and the show rate is calculated without them.",
+    });
+  }
+
+  // 4. Paid leads that can't be credited to any ad.
   const unattributed = opts.rows.find((r) => r.ad_id === NO_AD_ID);
   if (opts.traffic === "paid" && unattributed && n(unattributed.leads) > 0) {
     items.push({
@@ -763,7 +796,7 @@ async function loadHealth(
     });
   }
 
-  // 4. Headline-test visitors that are Meta's ad review, not people.
+  // 5. Headline-test visitors that are Meta's ad review, not people.
   //    ab_views_scored marks review bursts (the one place that rule lives);
   //    ab_report already leaves them out. Here we say how many were dropped,
   //    and warn only if a burst got past the rule — visits far above clicks.
@@ -881,7 +914,9 @@ function AdSetTable({ rows }: { rows: ReportRow[] }) {
     leads: number;
     booked: number;
     showed: number;
-    noShowsFinal: number;
+    callsHeld: number;
+    callsNoShow: number;
+    callsPending: number;
     won: number;
     revenue: number;
   };
@@ -908,7 +943,9 @@ function AdSetTable({ rows }: { rows: ReportRow[] }) {
       leads: 0,
       booked: 0,
       showed: 0,
-      noShowsFinal: 0,
+      callsHeld: 0,
+      callsNoShow: 0,
+      callsPending: 0,
       won: 0,
       revenue: 0,
     };
@@ -918,7 +955,9 @@ function AdSetTable({ rows }: { rows: ReportRow[] }) {
     g.leads += n(r.leads);
     g.booked += n(r.booked);
     g.showed += n(r.showed);
-    g.noShowsFinal += n(r.no_shows_final);
+    g.callsHeld += n(r.calls_held);
+    g.callsNoShow += n(r.calls_no_show);
+    g.callsPending += n(r.calls_pending);
     g.won += n(r.won);
     g.revenue += n(r.revenue);
     groups.set(key, g);
@@ -953,7 +992,7 @@ function AdSetTable({ rows }: { rows: ReportRow[] }) {
         </thead>
         <tbody>
           {list.map((g) => {
-            const calls = callOutcomes(g.booked, g.showed, g.noShowsFinal);
+            const calls = callOutcomes(g.callsHeld, g.callsNoShow, g.callsPending);
             const groupRoas = rate(g.revenue, g.spend);
             return (
               <tr key={g.key}>
@@ -1135,18 +1174,14 @@ function Shell({
 
 /* -------------------------------------------------------------------------- */
 
-/**
- * Splits booked calls into held, missed and still-to-happen. `showed` and
- * `noShowsFinal` are disjoint subsets of `booked` (see funnel_report), so the
- * remainder is every booking with no outcome yet — mostly calls in the future.
- */
-function callOutcomes(booked: number, showed: number, noShowsFinal: number) {
-  const resolved = showed + noShowsFinal;
+/** Show and no-show rate over calls that have an outcome (pending excluded). */
+function callOutcomes(held: number, noShow: number, pending: number) {
+  const resolved = held + noShow;
   return {
     resolved,
-    pending: Math.max(0, booked - resolved),
-    showRate: rate(showed, resolved),
-    noShowRate: rate(noShowsFinal, resolved),
+    pending,
+    showRate: rate(held, resolved),
+    noShowRate: rate(noShow, resolved),
   };
 }
 

@@ -76,8 +76,8 @@ export async function pingSupabase(): Promise<{
 
 /** The stages a lead can pass through. Order is the funnel order. */
 export const LEAD_STAGES = [
-  "for_qualification",
   "opted_in",
+  "for_qualification",
   "qualified",
   "booked",
   "rescheduled",
@@ -120,6 +120,13 @@ export interface LeadResult {
   leadId?: string;
   skipped?: boolean;
   error?: string;
+  /**
+   * Stage writes only: true the first time this lead reaches this stage. The
+   * pipeline loops (Booked Call → For Qualification → Booked Call…), so a stage
+   * can fire many times; Meta should hear about the first one only.
+   * Undefined when the database couldn't tell (old schema).
+   */
+  firstTime?: boolean;
 }
 
 /** Records the opt-in. Called by /api/register after the GHL upsert. */
@@ -174,7 +181,14 @@ export async function recordLeadOptIn(input: LeadOptInInput): Promise<LeadResult
   }
 }
 
-/** Stamps a funnel stage. Called by /api/conversion on every GHL stage move. */
+/**
+ * Records a funnel stage move. Called by /api/conversion on every GHL stage move.
+ *
+ * record_lead_event appends the move to lead_stage_events (the call history the
+ * show rate is computed from), keeps the first-occurrence stamps on `leads`, and
+ * reports whether this is the lead's first time at the stage. Falls back to
+ * record_lead_stage if the 2026-10-07 migration hasn't been applied yet.
+ */
 export async function recordLeadStage(input: LeadStageInput): Promise<LeadResult> {
   const supabase = getSupabase();
   if (!supabase) return { ok: false, skipped: true, error: "supabase_not_configured" };
@@ -183,23 +197,44 @@ export async function recordLeadStage(input: LeadStageInput): Promise<LeadResult
     return { ok: false, error: "no_identifier" };
   }
 
-  try {
-    const { data, error } = await supabase.rpc("record_lead_stage", {
-      p_contact_id: input.ghlContactId ?? null,
-      p_email: input.email ?? null,
-      p_stage: input.stage,
-      p_at: (input.at ?? new Date()).toISOString(),
-      p_revenue: typeof input.revenue === "number" ? input.revenue : null,
-      p_currency: input.currency ?? null,
-    });
+  const args = {
+    p_contact_id: input.ghlContactId ?? null,
+    p_email: input.email ?? null,
+    p_stage: input.stage,
+    p_at: (input.at ?? new Date()).toISOString(),
+    p_revenue: typeof input.revenue === "number" ? input.revenue : null,
+    p_currency: input.currency ?? null,
+  };
 
-    if (error) {
+  try {
+    const { data, error } = await supabase.rpc("record_lead_event", args);
+
+    if (!error) {
+      const row = (Array.isArray(data) ? data[0] : data) as
+        | { lead_id?: string; first_time?: boolean }
+        | null
+        | undefined;
+      return {
+        ok: true,
+        leadId: typeof row?.lead_id === "string" ? row.lead_id : undefined,
+        firstTime: typeof row?.first_time === "boolean" ? row.first_time : undefined,
+      };
+    }
+
+    // PGRST202: function not found — the migration isn't applied yet.
+    if (error.code !== "PGRST202") {
       const described = describeSupabaseError(error);
       console.error(`[leads] stage "${input.stage}" failed: ${described}`);
       return { ok: false, error: described };
     }
 
-    return { ok: true, leadId: typeof data === "string" ? data : undefined };
+    const legacy = await supabase.rpc("record_lead_stage", args);
+    if (legacy.error) {
+      const described = describeSupabaseError(legacy.error);
+      console.error(`[leads] stage "${input.stage}" failed: ${described}`);
+      return { ok: false, error: described };
+    }
+    return { ok: true, leadId: typeof legacy.data === "string" ? legacy.data : undefined };
   } catch (err) {
     console.error(`[leads] stage write threw: ${describeThrown(err)}`);
     return { ok: false, error: describeThrown(err) };

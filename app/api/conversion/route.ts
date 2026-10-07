@@ -128,9 +128,10 @@ const STAGE_ALIASES: Record<string, LeadStage> = {
  * lives in Supabase.
  */
 /**
- * `showed` is never sent by a closer — it is derived in funnel_report from
- * Proposal Sent / Lost / Won, all of which prove the call happened. The stage
- * alias still exists so an explicit `showed` webhook works if you ever add one.
+ * `showed` is never sent by a closer. Calls are rebuilt from the stage history
+ * in lead_calls(): Booked Call → Lost / Proposal Sent / Won is a held call,
+ * Booked Call → No Show a missed one. The alias exists so an explicit `showed`
+ * webhook still works if you ever add one.
  */
 const META_EVENT_FOR_STAGE: Partial<Record<LeadStage, MetaEventName>> = {
   qualified: "Qualified",
@@ -292,7 +293,15 @@ export async function POST(request: Request) {
   let metaResult: Awaited<ReturnType<typeof sendMetaEvent>> | null = null;
   let eventId: string | null = null;
 
-  if (metaEventName) {
+  // The pipeline loops: a lead can go Booked Call → For Qualification → Booked
+  // Call again. Meta gets Qualified / Lead / Purchase for the FIRST time only;
+  // a repeat would count as a second conversion once Meta's 48-hour dedup
+  // window has passed. An explicit `metaEvent` in the payload still forces it.
+  const repeatStage = ledger.ok && ledger.firstTime === false;
+  const forced = Boolean(str(src.metaEvent ?? src.meta_event));
+  const skipRepeat = Boolean(metaEventName) && repeatStage && !forced;
+
+  if (metaEventName && !skipRepeat) {
     const providedEventId = str(src.eventId);
     eventId = /^[A-Za-z0-9_-]{8,64}$/.test(providedEventId)
       ? providedEventId
@@ -340,7 +349,9 @@ export async function POST(request: Request) {
 
   const metaStatus = !metaEventName
     ? "n/a"
-    : !metaResult
+    : skipRepeat
+      ? "skipped:repeat_stage"
+      : !metaResult
       ? "skipped:no_identifiers"
       : metaResult.ok
         ? "sent"
