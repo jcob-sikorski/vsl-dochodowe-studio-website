@@ -2,6 +2,7 @@
 
 import Clarity from "@microsoft/clarity";
 import { Button } from "@/components/ui/button";
+import { CTA_LABEL } from "@/lib/narrative";
 
 interface ScrollToFormCtaProps {
   location: string;
@@ -11,7 +12,7 @@ interface ScrollToFormCtaProps {
 
 export function ScrollToFormCta({
   location,
-  label = "UMÓW KONSULTACJĘ",
+  label = CTA_LABEL,
   className = "",
 }: ScrollToFormCtaProps) {
   return (

@@ -7,7 +7,7 @@
  * Protected by HTTP Basic Auth in src/middleware.ts.
  * -------------------------------------------------------------------------- */
 
-import { HEADLINE_EXPERIMENT, getVariant } from "@/lib/ab";
+import { HEADLINE_EXPERIMENT, PREVIOUS_EXPERIMENT_IDS, getVariant } from "@/lib/ab";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getSupabase } from "@/lib/supabase";
 
@@ -135,6 +135,14 @@ export default async function DashboardPage({
   const range = clampRange(first(params.range));
   const traffic = first(params.traffic) === "all" ? "all" : "paid";
 
+  // Which headline test to report on. Only known ids are accepted; anything
+  // else falls back to the running test.
+  const requestedExperiment = first(params.experiment);
+  const experiment =
+    requestedExperiment && PREVIOUS_EXPERIMENT_IDS.includes(requestedExperiment)
+      ? requestedExperiment
+      : HEADLINE_EXPERIMENT.id;
+
   const to = first(params.to) ?? isoDate(new Date());
   const from =
     first(params.from) ?? isoDate(new Date(Date.parse(to) - (range - 1) * 86_400_000));
@@ -143,7 +151,7 @@ export default async function DashboardPage({
 
   if (!supabase) {
     return (
-      <Shell from={from} to={to} range={range} traffic={traffic}>
+      <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment}>
         <Notice
           title="Supabase isn't configured"
           body="Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, then run supabase/schema.sql in the SQL editor."
@@ -160,7 +168,7 @@ export default async function DashboardPage({
 
   if (error) {
     return (
-      <Shell from={from} to={to} range={range} traffic={traffic}>
+      <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment}>
         <Notice title="Query failed" body={error.message} tone="critical" />
       </Shell>
     );
@@ -174,7 +182,7 @@ export default async function DashboardPage({
     p_from: from,
     p_to: to,
     p_traffic: traffic,
-    p_experiment: HEADLINE_EXPERIMENT.id,
+    p_experiment: experiment,
   });
 
   const abRows = (ab.error ? [] : ((ab.data ?? []) as AbRow[])).filter((r) => r.variant_id);
@@ -186,6 +194,7 @@ export default async function DashboardPage({
     traffic,
     rows,
     abActive: abRows.length > 0,
+    experiment,
   });
 
   const totals: Totals = rows.reduce<Totals>(
@@ -280,7 +289,7 @@ export default async function DashboardPage({
   ];
 
   return (
-    <Shell from={from} to={to} range={range} traffic={traffic}>
+    <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment}>
       <HealthStrip items={health} />
 
       {/* ---- headline economics ------------------------------------- */}
@@ -342,7 +351,21 @@ export default async function DashboardPage({
       </div>
 
       {/* ---- headline split test ------------------------------------- */}
-      <h2 className="h2">Headline test · {HEADLINE_EXPERIMENT.id}</h2>
+      <h2 className="h2">
+        Headline test · {experiment}
+        {experiment === HEADLINE_EXPERIMENT.id ? " (running)" : " (finished)"}
+      </h2>
+      <nav className="seg" role="group" aria-label="Headline test">
+        {[HEADLINE_EXPERIMENT.id, ...PREVIOUS_EXPERIMENT_IDS].map((id) => (
+          <a
+            key={id}
+            href={`?range=${range}&traffic=${traffic}${id === HEADLINE_EXPERIMENT.id ? "" : `&experiment=${id}`}`}
+            className={`chip${id === experiment ? " on" : ""}`}
+          >
+            {id}
+          </a>
+        ))}
+      </nav>
       <AbTest rows={abRows} error={ab.error?.message} traffic={traffic} />
 
       {/* ---- per-ad-set table ---------------------------------------- */}
@@ -680,7 +703,14 @@ async function fetchAll<T>(
 
 async function loadHealth(
   supabase: Db,
-  opts: { from: string; to: string; traffic: string; rows: ReportRow[]; abActive: boolean }
+  opts: {
+    from: string;
+    to: string;
+    traffic: string;
+    rows: ReportRow[];
+    abActive: boolean;
+    experiment: string;
+  }
 ): Promise<HealthItem[]> {
   const items: HealthItem[] = [];
   // Same day boundaries funnel_report uses.
@@ -813,7 +843,7 @@ async function loadHealth(
         supabase
           .from(table)
           .select(cols)
-          .eq("experiment_id", HEADLINE_EXPERIMENT.id)
+          .eq("experiment_id", opts.experiment)
           .eq("traffic_type", "paid")
           .gte("first_seen_at", fromTs)
           .lt("first_seen_at", toTs)
@@ -1138,14 +1168,18 @@ function Shell({
   to,
   range,
   traffic,
+  experiment,
 }: {
   children: React.ReactNode;
   from: string;
   to: string;
   range: number;
   traffic: string;
+  experiment: string;
 }) {
   const ranges = [7, 14, 30, 90];
+  // Keep a finished test selected while the range and traffic filters change.
+  const exp = experiment === HEADLINE_EXPERIMENT.id ? "" : `&experiment=${experiment}`;
 
   return (
     <main className="viz-root">
@@ -1171,14 +1205,14 @@ function Shell({
         <nav className="filters" aria-label="Filters">
           <div className="seg" role="group" aria-label="Date range">
             {ranges.map((r) => (
-              <a key={r} href={`?range=${r}&traffic=${traffic}`} className={`chip${r === range ? " on" : ""}`}>
+              <a key={r} href={`?range=${r}&traffic=${traffic}${exp}`} className={`chip${r === range ? " on" : ""}`}>
                 {r}d
               </a>
             ))}
           </div>
           <div className="seg" role="group" aria-label="Traffic">
-            <a href={`?range=${range}&traffic=paid`} className={`chip${traffic === "paid" ? " on" : ""}`}>Paid</a>
-            <a href={`?range=${range}&traffic=all`} className={`chip${traffic === "all" ? " on" : ""}`}>All</a>
+            <a href={`?range=${range}&traffic=paid${exp}`} className={`chip${traffic === "paid" ? " on" : ""}`}>Paid</a>
+            <a href={`?range=${range}&traffic=all${exp}`} className={`chip${traffic === "all" ? " on" : ""}`}>All</a>
           </div>
           <ThemeToggle />
         </nav>

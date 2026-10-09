@@ -34,7 +34,7 @@ export function ThankYouVideoSection({
 
         {/* Headline */}
         <h1 className="mx-auto w-full text-center text-[1.12rem] min-[390px]:text-[1.25rem] sm:text-[1.45rem] font-extrabold uppercase leading-[1.2] tracking-tight text-neutral-900">
-          Gratulacje, Twoje Zgłoszenie Do Programu Zostało Wysłane!<br />
+          Gratulacje, Twoje Zgłoszenie Do Programu Zostało Przyjęte Do Weryfikacji!<br />
           <span className="underline decoration-neutral-900 decoration-2 underline-offset-2">
             {stepMessage}
           </span>
@@ -42,8 +42,8 @@ export function ThankYouVideoSection({
 
         {/* Subheadline */}
         <p className="mx-auto mt-2.5 w-full text-center text-[0.78rem] min-[390px]:text-[0.84rem] sm:text-[0.92rem] font-light leading-[1.35] tracking-normal text-neutral-800">
-          Krótka wiadomość ode mnie, zanim ruszymy z mentoringiem{" "}
-          <span className="font-bold text-neutral-900">następnie przewiń stronę w dół</span>
+          Zrobiłeś to, czego większość właścicieli nigdy nie robi: podjąłeś decyzję. Obejrzyj krótką wiadomość ode mnie,{" "}
+          <span className="font-bold text-neutral-900">a potem przewiń w dół i przygotuj się do rozmowy kwalifikacyjnej</span>
         </p>
 
         {/* Video Container — same treatment as the hero VSL: black bg, rounded-2xl, shadow-2xl, no colored border */}

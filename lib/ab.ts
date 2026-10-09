@@ -64,7 +64,11 @@ export interface AbExperiment {
  * ========================================================================== */
 
 export const HEADLINE_EXPERIMENT: AbExperiment = {
-  id: "headline_2026_09_v3",
+  // v4 (2026-10-09): same three headlines as v3, but the page around them
+  // changed for every arm — qualification bar, "APLIKUJ DO PROGRAMU" CTA,
+  // and the Okno / Rozwidlenie / Selekcja sections. A new id reshuffles all
+  // visitors and keeps v3 numbers from mixing with the new page.
+  id: "headline_2026_10_v4",
   enabled: true,
 
   subheadline:
@@ -93,6 +97,13 @@ export const HEADLINE_EXPERIMENT: AbExperiment = {
       },
     ]
 };
+
+/**
+ * Finished tests, newest first. Their data stays in Supabase under their own
+ * id; the dashboard can still show them with ?experiment=<id>. When you bump
+ * HEADLINE_EXPERIMENT.id, move the old id to the top of this list.
+ */
+export const PREVIOUS_EXPERIMENT_IDS: string[] = ["headline_2026_09_v3"];
 
 /* ========================================================================== *
  *  EDIT ABOVE THIS LINE

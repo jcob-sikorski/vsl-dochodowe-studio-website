@@ -4,6 +4,12 @@ import { VslHeroSection } from "@/components/vsl-hero-section";
 import { LegalFooter } from "@/components/legal-footer";
 import { CaseStudiesSection } from "@/components/case-studies-section";
 import { AbViewBeacon } from "@/components/ab-view-beacon";
+import { QualificationBar } from "@/components/narrative/qualification-bar";
+import { WhyNowSection } from "@/components/narrative/why-now-section";
+import { CrossroadsSection } from "@/components/narrative/crossroads-section";
+import { ReasonsSection } from "@/components/narrative/reasons-section";
+import { SelectionSection } from "@/components/narrative/selection-section";
+import { FinalDecisionSection } from "@/components/narrative/final-decision-section";
 import {
   AB_VARIANT_COOKIE,
   HEADLINE_EXPERIMENT,
@@ -15,6 +21,12 @@ import {
  * The headline differs per visitor, so this page can't be prerendered once and
  * shared. Middleware has already pinned the variant in a cookie by the time we
  * get here; we only read it.
+ *
+ * Page architecture follows the funnel narrative in lib/narrative.ts:
+ *   bar (program, by application) → hero + VSL + form
+ *   → OKNO (why now) → ROZWIDLENIE (decide today vs. 5 more years)
+ *   → reasons → SELEKCJA (who it's for, how qualification works)
+ *   → proof → final fork + CTA
  */
 export const dynamic = "force-dynamic";
 
@@ -27,9 +39,21 @@ export default async function Home() {
     <main>
       <AbViewBeacon experimentId={HEADLINE_EXPERIMENT.id} variantId={variant.id} />
 
+      <QualificationBar />
+
       <VslHeroSection variant={variant} />
 
+      <WhyNowSection />
+
+      <CrossroadsSection />
+
+      <ReasonsSection />
+
+      <SelectionSection />
+
       <CaseStudiesSection />
+
+      <FinalDecisionSection />
 
       <LegalFooter />
     </main>

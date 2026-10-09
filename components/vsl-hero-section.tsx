@@ -141,7 +141,7 @@ export function VslHeroSection({ variant }: VslHeroSectionProps) {
 
           {/* KROK 2 — formularz */}
           <div id="zapis" className="mt-6 w-full scroll-mt-4 min-[390px]:mt-7 sm:mt-8">
-            <StepBar step={2} title="Wypełnij formularz" />
+            <StepBar step={2} title="Złóż zgłoszenie do programu" />
 
             <div className="mt-3 flex w-full flex-col items-center min-[390px]:mt-3.5">
               <RegisterForm className="shadow-2xl" />

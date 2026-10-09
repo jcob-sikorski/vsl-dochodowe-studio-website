@@ -72,7 +72,7 @@ export function PlaybookSection() {
         </div>
 
         <p className="mx-auto mt-5 max-w-md text-center text-[0.82rem] sm:text-[0.88rem] font-light leading-[1.5] text-neutral-600">
-          Przekartkuj go przed rozmową:
+          Na rozmowę przychodzą osoby przygotowane. Przekartkuj playbook, zanim zadzwoni Paweł lub Olaf, a od razu zajmiemy się Twoimi liczbami zamiast podstaw:
         </p>
 
         {/* Highlights List */}

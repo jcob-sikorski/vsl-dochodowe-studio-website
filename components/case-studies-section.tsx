@@ -277,6 +277,10 @@ export function CaseStudiesSection({ showCtaButtons = true }: CaseStudiesSection
           </h2>
         </div>
 
+        <p className="mt-3 max-w-[21rem] text-center text-[0.86rem] leading-[1.5] text-neutral-700">
+          Ponad 50 właścicieli przeszło kwalifikację. Każdy z nich stał kiedyś tam, gdzie Ty teraz, i mógł poczekać kolejny rok.
+        </p>
+
         {/* ================= CASE STUDIES (one shared structure, media can repeat) ================= */}
         {CASE_STUDIES.map((cs, index) => (
           <React.Fragment key={cs.locationKey}>
@@ -334,7 +338,7 @@ export function CaseStudiesSection({ showCtaButtons = true }: CaseStudiesSection
         <p className="mt-2 text-center text-[0.78rem] sm:text-[0.84rem] text-neutral-500 max-w-[21rem]">
           M.in. Joanna Wójcik (Silna Studio: zajechanie na sali zamienione w 3 trenerów i drugie
           studio), Klaudia Ostrowska (Fitko Toruń: 40–50 tys. zł na rękę, zarządzanie z podróży) czy
-          Adrian i Konrad (Stillmotion Tychy: 7 trenerów, 30 tys. zł dochodu bez sprzedaży).
+          Adrian i Konrad (Stillmotion Tychy: 7 trenerów, 30 tys. zł zysku i oddelegowana sprzedaż).
         </p>
       </div>
     </section>

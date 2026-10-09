@@ -18,6 +18,7 @@ import { META_PIXEL_ID, makeEventId } from "@/components/facebook-pixel";
 import { resolveAttribution } from "@/lib/attribution";
 import { normalizePhone } from "@/lib/phone";
 import { isValidEmail, splitName } from "@/lib/validation";
+import { CTA_LABEL, CTA_MICROCOPY } from "@/lib/narrative";
 
 /* ---------- Microsoft Clarity, but never allowed to throw ----------------- */
 
@@ -361,11 +362,11 @@ export function RegisterForm({
             disabled={isSubmitting}
             className="!h-16 w-full rounded-xl !border-none !bg-[#ea580c] !px-4 text-lg font-extrabold uppercase tracking-normal text-white shadow-[0_8px_24px_-4px_rgba(234,88,12,0.45)] transition-colors hover:!bg-[#c2410c] active:scale-[0.99] disabled:opacity-70 sm:!h-[4.5rem] sm:text-xl"
           >
-            {isSubmitting ? "WYSYŁAM..." : "UMÓW KONSULTACJĘ"}
+            {isSubmitting ? "WYSYŁAM..." : CTA_LABEL}
           </Button>
 
           <div className="mt-2.5 flex items-center justify-center gap-1.5 text-center text-[11px] font-medium text-neutral-400">
-            Umów spotkanie z ekspertem. Rozmowa odbędzie się przez Google Meet.
+            {CTA_MICROCOPY}
           </div>
         </div>
       </form>
