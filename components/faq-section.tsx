@@ -33,7 +33,7 @@ const FAQ_VIDEOS: FaqVideo[] = [
 
 export function FaqVideosSection() {
   return (
-    <section className="relative w-full bg-white font-sans selection:bg-orange-200 flex flex-col items-center overflow-x-hidden pt-4 pb-14 px-4 sm:px-6">
+    <section data-track-section="faq_wideo" className="relative w-full bg-white font-sans selection:bg-orange-200 flex flex-col items-center overflow-x-hidden pt-4 pb-14 px-4 sm:px-6">
       <div className="mx-auto flex w-full max-w-[28rem] sm:max-w-xl md:max-w-2xl flex-col items-center">
 
         {/* Eyebrow Pill */}

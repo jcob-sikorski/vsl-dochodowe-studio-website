@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { TARGET_MONTHLY_PROFIT } from "@/lib/narrative";
+import { tag, track } from "@/lib/track";
 
 const pln = new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 0 });
 
@@ -35,7 +36,18 @@ export function CostOfWaiting() {
         max={60}
         step={1}
         value={months}
-        onChange={(e) => setMonths(Number(e.target.value))}
+        onChange={(e) => {
+          setMonths(Number(e.target.value));
+          track("cost_slider_used", { once: true });
+        }}
+        onPointerUp={() => {
+          tag("cost_slider_months", String(months));
+          track("cost_slider_set", { value: String(months) });
+        }}
+        onKeyUp={() => {
+          tag("cost_slider_months", String(months));
+          track("cost_slider_set", { value: String(months) });
+        }}
         className="mt-3 w-full accent-[#ea580c]"
       />
       <div className="mt-1 flex justify-between text-[0.7rem] text-neutral-500">

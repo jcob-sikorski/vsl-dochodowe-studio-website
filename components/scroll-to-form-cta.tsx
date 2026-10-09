@@ -1,8 +1,8 @@
 "use client";
 
-import Clarity from "@microsoft/clarity";
 import { Button } from "@/components/ui/button";
 import { CTA_LABEL } from "@/lib/narrative";
+import { tag, track } from "@/lib/track";
 
 interface ScrollToFormCtaProps {
   location: string;
@@ -20,8 +20,10 @@ export function ScrollToFormCta({
       <Button
         type="button"
         onClick={() => {
-          Clarity.event("cta_button_clicked");
-          Clarity.setTag("cta_location", location);
+          // Safe wrappers: a blocked or missing Clarity must never stop the scroll.
+          track("cta_button_clicked");
+          track(`cta_${location}`);
+          tag("cta_location", location);
 
           const el = document.getElementById("zapis");
 

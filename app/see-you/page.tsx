@@ -1,4 +1,5 @@
 import { LegalFooter } from "@/components/legal-footer";
+import { SectionTracker } from "@/components/section-tracker";
 
 import { ThankYouVideoSection } from "@/components/thank-you-video-section";
 import { FaqVideosSection } from "@/components/faq-section";
@@ -20,6 +21,8 @@ import { TextFaqSection } from "@/components/narrative/text-faq-section";
 export default function ConfirmationPage() {
   return (
     <main>
+      <SectionTracker page="confirm" />
+
       <ThankYouVideoSection />
 
       <NextStepsSection />

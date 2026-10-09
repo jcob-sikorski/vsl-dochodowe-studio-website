@@ -3,7 +3,7 @@ import { ScrollToFormCta } from "@/components/scroll-to-form-cta";
 /** Closes the page after the case studies: the fork, one last time. */
 export function FinalDecisionSection() {
   return (
-    <section className="w-full bg-neutral-900 px-4 py-14 sm:px-6 sm:py-16">
+    <section data-track-section="decyzja" className="w-full bg-neutral-900 px-4 py-14 sm:px-6 sm:py-16">
       <div className="mx-auto flex w-full max-w-[26rem] flex-col items-center text-center sm:max-w-xl">
         <h2 className="max-w-[24ch] text-[1.35rem] font-extrabold leading-tight tracking-tight text-white sm:text-[1.7rem]">
           Każdy z nich mógł poczekać kolejny rok.{" "}

@@ -19,6 +19,7 @@ import { resolveAttribution } from "@/lib/attribution";
 import { normalizePhone } from "@/lib/phone";
 import { isValidEmail, splitName } from "@/lib/validation";
 import { CTA_LABEL, CTA_MICROCOPY } from "@/lib/narrative";
+import { track } from "@/lib/track";
 
 /* ---------- Microsoft Clarity, but never allowed to throw ----------------- */
 
@@ -230,6 +231,7 @@ export function RegisterForm({
       });
 
       clarityEvent("registration_succeeded");
+      track("form_submitted", { once: true });
 
       onSuccess?.(data.contactId);
       router.push(data.redirectTo || redirectTo);
@@ -259,7 +261,12 @@ export function RegisterForm({
     <div
       className={`w-full max-w-[22rem] sm:max-w-[24rem] rounded-2xl border-2 border-[#ea580c] ring-4 ring-[#ea580c]/10 bg-white p-4 sm:p-5 shadow-[0_12px_36px_-6px_rgba(234,88,12,0.22),0_4px_16px_rgba(0,0,0,0.04)] ${className}`}
     >
-      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-3">
+      <form
+        onSubmit={handleSubmit}
+        onFocusCapture={() => track("form_started", { once: true })}
+        noValidate
+        className="flex flex-col gap-3"
+      >
         {/* Honeypot: hidden from humans, irresistible to bots. */}
         <div aria-hidden="true" className="absolute h-0 w-0 overflow-hidden opacity-0">
           <label htmlFor="company">Nazwa firmy</label>

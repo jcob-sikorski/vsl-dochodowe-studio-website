@@ -86,6 +86,18 @@ interface Totals {
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
+/** One row of engagement_report(): visitors who did `event` on `page`. */
+interface EngagementRow {
+  variant_id: string | null;
+  page: "landing" | "confirm";
+  event: string;
+  visitors: number | string;
+  hits: number | string;
+  avg_value: number | string | null;
+}
+
+type Device = "all" | "mobile" | "desktop";
+
 /* -------------------------------------------------------------------------- *
  * Formatting
  * -------------------------------------------------------------------------- */
@@ -143,6 +155,9 @@ export default async function DashboardPage({
       ? requestedExperiment
       : HEADLINE_EXPERIMENT.id;
 
+  const deviceParam = first(params.device);
+  const device: Device = deviceParam === "mobile" || deviceParam === "desktop" ? deviceParam : "all";
+
   const to = first(params.to) ?? isoDate(new Date());
   const from =
     first(params.from) ?? isoDate(new Date(Date.parse(to) - (range - 1) * 86_400_000));
@@ -151,7 +166,7 @@ export default async function DashboardPage({
 
   if (!supabase) {
     return (
-      <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment}>
+      <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment} device={device}>
         <Notice
           title="Supabase isn't configured"
           body="Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, then run supabase/schema.sql in the SQL editor."
@@ -168,7 +183,7 @@ export default async function DashboardPage({
 
   if (error) {
     return (
-      <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment}>
+      <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment} device={device}>
         <Notice title="Query failed" body={error.message} tone="critical" />
       </Shell>
     );
@@ -186,6 +201,17 @@ export default async function DashboardPage({
   });
 
   const abRows = (ab.error ? [] : ((ab.data ?? []) as AbRow[])).filter((r) => r.variant_id);
+
+  // Page engagement — same cohort as the split test (see migration
+  // 2026-10-09_page_events.sql). Never blocks the page.
+  const engagement = await supabase.rpc("engagement_report", {
+    p_from: from,
+    p_to: to,
+    p_traffic: traffic,
+    p_experiment: experiment,
+    p_device: device,
+  });
+  const engagementRows = engagement.error ? [] : ((engagement.data ?? []) as EngagementRow[]);
 
   // Data problems that would make the numbers below wrong. Never blocks the page.
   const health = await loadHealth(supabase, {
@@ -289,7 +315,7 @@ export default async function DashboardPage({
   ];
 
   return (
-    <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment}>
+    <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment} device={device}>
       <HealthStrip items={health} />
 
       {/* ---- headline economics ------------------------------------- */}
@@ -367,6 +393,21 @@ export default async function DashboardPage({
         ))}
       </nav>
       <AbTest rows={abRows} error={ab.error?.message} traffic={traffic} />
+
+      {/* ---- page engagement ------------------------------------------ */}
+      <h2 className="h2">Page engagement · where visitors stop and what they tap</h2>
+      <nav className="seg" role="group" aria-label="Device">
+        {(["all", "mobile", "desktop"] as Device[]).map((d) => (
+          <a
+            key={d}
+            href={`?range=${range}&traffic=${traffic}${experiment === HEADLINE_EXPERIMENT.id ? "" : `&experiment=${experiment}`}${d === "all" ? "" : `&device=${d}`}`}
+            className={`chip${d === device ? " on" : ""}`}
+          >
+            {d === "all" ? "All devices" : d === "mobile" ? "Mobile" : "Desktop"}
+          </a>
+        ))}
+      </nav>
+      <Engagement rows={engagementRows} error={engagement.error?.message} />
 
       {/* ---- per-ad-set table ---------------------------------------- */}
       {rows.length > 0 && (
@@ -658,6 +699,327 @@ function AbTest({
         also loads the page itself whenever new ads are published. A visit only counts once the
         visitor scrolls, taps or keeps the page open for a few seconds, and any hour with 20+
         visitors where nobody returned or opted in is excluded as ad review.
+      </p>
+    </>
+  );
+}
+
+/* -------------------------------------------------------------------------- *
+ * Page engagement
+ *
+ * Where headline-test visitors stop and what they tap, from page_events
+ * (lib/track.ts → /api/track). A section counts once a visitor keeps it on
+ * screen for a second; every rate is "share of visitors who opened that
+ * page", not of the previous step, so a dip shows exactly where people leave.
+ * -------------------------------------------------------------------------- */
+
+const LANDING_SECTIONS: [string, string][] = [
+  ["hero", "Headline + VSL"],
+  ["formularz", "Form (step 2)"],
+  ["dlaczego-teraz", "Dlaczego teraz (okno)"],
+  ["rozwidlenie", "Rozwidlenie + slider"],
+  ["co-zyskujesz", "Co zyskujesz (powody)"],
+  ["dla-kogo", "Kwalifikacja (dla kogo)"],
+  ["historie", "Historie uczestników"],
+  ["decyzja", "Final decision + CTA"],
+  ["stopka", "Footer"],
+];
+
+const CONFIRM_SECTIONS: [string, string][] = [
+  ["wiadomosc", "Thank-you video"],
+  ["co-teraz", "Co dzieje się teraz"],
+  ["przygotowanie", "Przygotowanie do rozmowy"],
+  ["playbook", "Playbook"],
+  ["dlaczego-to-dobra-decyzja", "Recap (okno / rozwidlenie / selekcja)"],
+  ["pytania", "Written FAQ"],
+  ["faq_wideo", "Video FAQ"],
+  ["wywiady", "Client interviews"],
+  ["historie", "Historie uczestników"],
+  ["stopka", "Footer"],
+];
+
+const VSL_STEPS: [string, string][] = [
+  ["vsl_play", "Pressed play"],
+  ["vsl_10", "Watched 10%"],
+  ["vsl_25", "Watched 25%"],
+  ["vsl_50", "Watched 50%"],
+  ["vsl_75", "Watched 75%"],
+  ["vsl_90", "Watched 90%"],
+  ["vsl_complete", "Finished"],
+];
+
+const CTA_LABELS: Record<string, string> = {
+  button_clicked: "Any “Aplikuj” button (all locations)",
+  why_now: "After “Dlaczego teraz”",
+  crossroads: "After “Rozwidlenie”",
+  selection: "After “Kwalifikacja”",
+  final_decision: "Final section",
+};
+
+function tapLabel(event: string): string {
+  if (event.startsWith("cta_case_study_")) return `Under case study #${event.slice("cta_case_study_".length)}`;
+  if (event.startsWith("cta_")) return CTA_LABELS[event.slice(4)] ?? event.slice(4);
+  if (event.startsWith("faq_text_open_")) return `Opened written FAQ #${event.slice("faq_text_open_".length)}`;
+  if (event.startsWith("interview_open_")) return `Opened interview #${event.slice("interview_open_".length)}`;
+  const fixed: Record<string, string> = {
+    form_started: "Tapped into the form",
+    form_submitted: "Submitted the form",
+    cost_slider_used: "Moved the cost-of-waiting slider",
+    playbook_download: "Downloaded the playbook",
+  };
+  return fixed[event] ?? event;
+}
+
+interface EventStat {
+  visitors: number;
+  hits: number;
+  avg?: number;
+  byVariant: Map<string, number>;
+}
+
+function aggregate(rows: EngagementRow[], page: "landing" | "confirm") {
+  const out = new Map<string, EventStat>();
+  for (const r of rows) {
+    if (r.page !== page) continue;
+    const s = out.get(r.event) ?? { visitors: 0, hits: 0, byVariant: new Map<string, number>() };
+    const v = n(r.visitors);
+    // Variants are disjoint sets of visitors, so per-variant counts add up.
+    s.visitors += v;
+    s.hits += n(r.hits);
+    if (r.avg_value !== null && r.avg_value !== undefined) {
+      // visitor-weighted mean across variants
+      const prevWeight = s.visitors - v;
+      s.avg = ((s.avg ?? 0) * prevWeight + n(r.avg_value) * v) / Math.max(1, s.visitors);
+    }
+    s.byVariant.set(r.variant_id ?? "", (s.byVariant.get(r.variant_id ?? "") ?? 0) + v);
+    out.set(r.event, s);
+  }
+  return out;
+}
+
+/** Reach bars: every row against the page's visitors, plus the drop from the row above. */
+function ReachBars({
+  steps,
+  base,
+}: {
+  steps: { label: string; value: number }[];
+  base: number;
+}) {
+  return (
+    <div className="funnel">
+      {steps.map((step, i) => {
+        const share = rate(step.value, base);
+        const prevShare = i === 0 ? undefined : rate(steps[i - 1].value, base);
+        const drop =
+          share === undefined || prevShare === undefined ? undefined : Math.round((prevShare - share) * 100);
+        const width = Math.max(1.5, (step.value / Math.max(1, base)) * 100);
+        return (
+          <div className="funnel-row" key={step.label}>
+            <div className="funnel-label">
+              <span className="funnel-idx">{i + 1}</span>
+              {step.label}
+            </div>
+            <div className="funnel-track">
+              <div className="funnel-bar step-4" style={{ width: `${width}%` }} title={`${step.label}: ${int.format(step.value)}`} />
+              <span className="funnel-value">{int.format(step.value)}</span>
+            </div>
+            <div className="funnel-rate">
+              {pct(share)} of visitors
+              {drop !== undefined && drop > 0 ? (
+                <span className={drop >= 15 ? "roas critical" : drop >= 8 ? "roas warning" : ""}> · −{drop} pts</span>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Reach per headline variant, side by side — "which headline makes people read further". */
+function VariantReachTable({
+  rows,
+  stats,
+  pageviewEvent,
+}: {
+  rows: [string, string][];
+  stats: Map<string, EventStat>;
+  pageviewEvent: string;
+}) {
+  const base = stats.get(pageviewEvent);
+  if (!base || base.byVariant.size < 2) return null;
+
+  const order = new Map(HEADLINE_EXPERIMENT.variants.map((v, i) => [v.id, i]));
+  const variants = [...base.byVariant.keys()].sort((a, b) => (order.get(a) ?? 99) - (order.get(b) ?? 99));
+
+  return (
+    <div className="tablewrap" style={{ marginTop: 12 }}>
+      <table className="table">
+        <thead>
+          <tr>
+            <th scope="col" className="left">Reached</th>
+            {variants.map((v) => (
+              <th scope="col" key={v}>
+                {order.has(v) ? getVariant(v).label.split(" — ")[0] : v}
+                <span className="sub" style={{ display: "block" }}>
+                  {int.format(base.byVariant.get(v) ?? 0)} visitors
+                </span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([event, label]) => (
+            <tr key={event}>
+              <th scope="row" className="left">
+                <span className="adname">{label}</span>
+              </th>
+              {variants.map((v) => (
+                <td key={v}>{pct(rate(stats.get(event)?.byVariant.get(v) ?? 0, base.byVariant.get(v) ?? 0))}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TapTable({ stats, base, events }: { stats: Map<string, EventStat>; base: number; events: string[] }) {
+  const list = events
+    .map((e) => ({ event: e, s: stats.get(e) }))
+    .filter((x): x is { event: string; s: EventStat } => Boolean(x.s))
+    .sort((a, b) => b.s.visitors - a.s.visitors);
+
+  if (list.length === 0) return <Notice title="No taps yet" body="Nobody in this range has tapped a tracked element on this page." />;
+
+  return (
+    <div className="tablewrap" style={{ marginTop: 12 }}>
+      <table className="table">
+        <thead>
+          <tr>
+            <th scope="col" className="left">Tap</th>
+            <th scope="col">Visitors</th>
+            <th scope="col">% of visitors</th>
+            <th scope="col">Total taps</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map(({ event, s }) => (
+            <tr key={event}>
+              <th scope="row" className="left">
+                <span className="adname">{tapLabel(event)}</span>
+                {event === "cost_slider_used" && stats.get("cost_slider_set")?.avg !== undefined && (
+                  <span className="sub">
+                    left at {Math.round(stats.get("cost_slider_set")!.avg!)} months on average
+                  </span>
+                )}
+              </th>
+              <td>{int.format(s.visitors)}</td>
+              <td>{pct2(rate(s.visitors, base))}</td>
+              <td>{int.format(s.hits)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Engagement({ rows, error }: { rows: EngagementRow[]; error?: string }) {
+  if (error) {
+    return (
+      <Notice
+        title="Engagement tables aren't installed"
+        body={`${error} — run supabase/migrations/2026-10-09_page_events.sql in the SQL editor.`}
+      />
+    );
+  }
+
+  const landing = aggregate(rows, "landing");
+  const confirm = aggregate(rows, "confirm");
+  const landingBase = landing.get("pageview_landing")?.visitors ?? 0;
+  const confirmBase = confirm.get("pageview_confirm")?.visitors ?? 0;
+
+  if (landingBase === 0 && confirmBase === 0) {
+    return (
+      <Notice
+        title="No engagement data in this range"
+        body="Events are recorded from the deploy that added lib/track.ts onward, and only for visitors counted in the headline test above. Pick a range after that deploy, or switch traffic to All."
+      />
+    );
+  }
+
+  const get = (m: Map<string, EventStat>, e: string) => m.get(e)?.visitors ?? 0;
+
+  const landingSteps = LANDING_SECTIONS.map(([id, label]) => ({ label, value: get(landing, `section_landing_${id}`) }));
+  const vslSteps = VSL_STEPS.map(([e, label]) => ({ label, value: get(landing, e) }));
+  const confirmSteps = CONFIRM_SECTIONS.map(([id, label]) => ({ label, value: get(confirm, `section_confirm_${id}`) }));
+
+  const landingTaps = [...landing.keys()].filter((e) => e.startsWith("cta_") || e.startsWith("form_") || e === "cost_slider_used");
+  const confirmTaps = [...confirm.keys()].filter(
+    (e) => e.startsWith("faq_") || e.startsWith("interview_") || e === "playbook_download"
+  );
+
+  // The landing visitors who went on to open the confirmation page.
+  const submitted = get(landing, "form_submitted");
+
+  return (
+    <>
+      <section className="tiles" aria-label="Engagement headline metrics">
+        <Tile label="Landing visitors tracked" value={int.format(landingBase)} note="headline-test visitors since tracking went live" />
+        <Tile label="Pressed play on VSL" value={pct(rate(get(landing, "vsl_play"), landingBase))} note={`${pct(rate(get(landing, "vsl_50"), landingBase))} reached half`} />
+        <Tile label="Tapped into form" value={pct2(rate(get(landing, "form_started"), landingBase))} note={`${int.format(get(landing, "form_started"))} visitors`} />
+        <Tile
+          label="Started → submitted"
+          value={pct(rate(submitted, get(landing, "form_started")))}
+          note={`${int.format(submitted)} submitted`}
+        />
+      </section>
+
+      <h2 className="h2">Landing · sections reached</h2>
+      <div className="card">
+        <ReachBars steps={landingSteps} base={landingBase} />
+      </div>
+      <VariantReachTable
+        rows={[
+          ...LANDING_SECTIONS.map(([id, label]) => [`section_landing_${id}`, label] as [string, string]),
+          ["vsl_50", "VSL watched to 50%"],
+          ["form_started", "Tapped into form"],
+          ["form_submitted", "Submitted form"],
+        ]}
+        stats={landing}
+        pageviewEvent="pageview_landing"
+      />
+
+      <h2 className="h2">Landing · VSL watched</h2>
+      <div className="card">
+        <ReachBars steps={vslSteps} base={landingBase} />
+      </div>
+
+      <h2 className="h2">Landing · taps</h2>
+      <TapTable stats={landing} base={landingBase} events={landingTaps} />
+
+      <h2 className="h2">Confirmation page · sections reached</h2>
+      {confirmBase === 0 ? (
+        <Notice title="No confirmation-page visits in this range" body="Nobody in this cohort has opened /see-you yet." />
+      ) : (
+        <>
+          <div className="card">
+            <ReachBars steps={confirmSteps} base={confirmBase} />
+          </div>
+          <h2 className="h2">Confirmation page · taps</h2>
+          <TapTable stats={confirm} base={confirmBase} events={confirmTaps} />
+        </>
+      )}
+
+      <p className="foot">
+        A section counts once a visitor keeps it on screen for a second, so flicking past doesn&rsquo;t count.
+        Every rate is the share of visitors who opened that page, and &ldquo;−N pts&rdquo; is the drop from the row
+        above: the biggest drop is the section to rewrite first. Visitors are the same cohort as the headline
+        test above, with the same traffic filter and ad-review exclusion. The device split uses the device of
+        the visitor&rsquo;s first landing view. For the picture behind a number, open Clarity and filter by
+        <code> page_version</code>, <code>ab_variant</code> or <code>deepest_section</code>.
       </p>
     </>
   );
@@ -1169,6 +1531,7 @@ function Shell({
   range,
   traffic,
   experiment,
+  device = "all",
 }: {
   children: React.ReactNode;
   from: string;
@@ -1176,10 +1539,13 @@ function Shell({
   range: number;
   traffic: string;
   experiment: string;
+  device?: Device;
 }) {
   const ranges = [7, 14, 30, 90];
   // Keep a finished test selected while the range and traffic filters change.
-  const exp = experiment === HEADLINE_EXPERIMENT.id ? "" : `&experiment=${experiment}`;
+  const exp =
+    (experiment === HEADLINE_EXPERIMENT.id ? "" : `&experiment=${experiment}`) +
+    (device === "all" ? "" : `&device=${device}`);
 
   return (
     <main className="viz-root">

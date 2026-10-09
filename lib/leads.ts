@@ -302,3 +302,48 @@ export async function recordAbView(input: AbViewInput): Promise<LeadResult> {
 }
 
 export { isSupabaseConfigured };
+
+/* -------------------------------------------------------------------------- *
+ * Page engagement events
+ * -------------------------------------------------------------------------- */
+
+export interface PageEventsInput {
+  experimentId: string;
+  visitorId: string;
+  page: "landing" | "confirm";
+  viewport?: "mobile" | "desktop";
+  pageVersion?: string;
+  events: { event: string; value?: string }[];
+}
+
+/**
+ * Writes one flush of engagement events. Called by /api/track.
+ * Idempotent per (experiment, visitor, page, event); repeats only bump `hits`.
+ */
+export async function recordPageEvents(input: PageEventsInput): Promise<LeadResult> {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, skipped: true, error: "supabase_not_configured" };
+
+  try {
+    const { error } = await supabase.rpc("record_page_events", {
+      p_batch: {
+        experiment_id: input.experimentId,
+        visitor_id: input.visitorId,
+        page: input.page,
+        viewport: input.viewport ?? null,
+        page_version: input.pageVersion ?? null,
+        events: input.events,
+      },
+    });
+
+    if (error) {
+      const described = describeSupabaseError(error);
+      console.error(`[track] insert failed: ${described}`);
+      return { ok: false, error: described };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error(`[track] insert threw: ${describeThrown(err)}`);
+    return { ok: false, error: describeThrown(err) };
+  }
+}

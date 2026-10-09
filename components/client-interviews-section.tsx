@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { track } from "@/lib/track";
 
 /**
  * "Wywiady z klientami" — YouTube client interview section.
@@ -85,12 +86,13 @@ function PlayIcon() {
   );
 }
 
-function InterviewThumbnail({ id, title }: { id: string; title: string }) {
+function InterviewThumbnail({ id, title, position }: { id: string; title: string; position: number }) {
   const [src, setSrc] = React.useState(`https://i.ytimg.com/vi/${id}/maxresdefault.jpg`);
 
   return (
     <a
       href={`https://youtu.be/${id}`}
+      onClick={() => track(`interview_open_${position}`)}
       target="_blank"
       rel="noreferrer"
       aria-label={title}
@@ -115,7 +117,7 @@ function InterviewThumbnail({ id, title }: { id: string; title: string }) {
 
 export function ClientInterviewsSection() {
   return (
-    <section className="w-full bg-white pt-1 pb-12 px-4 sm:px-6">
+    <section data-track-section="wywiady" className="w-full bg-white pt-1 pb-12 px-4 sm:px-6">
       <div className="mx-auto flex w-full max-w-[22.5rem] sm:max-w-[25.5rem] flex-col items-center">
         {/* Top Highlighter Header — same treatment as CaseStudiesSection */}
         <div className="inline-block bg-[#faea75] px-5 min-[390px]:px-6 py-1 text-center">
@@ -137,7 +139,7 @@ export function ClientInterviewsSection() {
               {video.title}
             </h3>
 
-            <InterviewThumbnail id={video.id} title={video.title} />
+            <InterviewThumbnail id={video.id} title={video.title} position={index + 1} />
           </div>
         ))}
       </div>

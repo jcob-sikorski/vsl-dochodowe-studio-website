@@ -265,7 +265,7 @@ const CASE_STUDIES: CaseStudy[] = [
 
 export function CaseStudiesSection({ showCtaButtons = true }: CaseStudiesSectionProps) {
   return (
-    <section className="w-full bg-white pt-1 pb-12 px-4 sm:px-6">
+    <section data-track-section="historie" className="w-full bg-white pt-1 pb-12 px-4 sm:px-6">
       <div className="mx-auto flex w-full max-w-[22.5rem] sm:max-w-[25.5rem] flex-col items-center">
         {/* Top Highlighter Header */}
         <div className="inline-block bg-[#faea75] px-5 min-[390px]:px-6 py-1 text-center">

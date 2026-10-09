@@ -47,6 +47,7 @@ export function NarrativeShell({
   return (
     <section
       id={id}
+      data-track-section={id}
       className={`w-full px-4 py-12 sm:px-6 sm:py-16 ${tone === "panel" ? "bg-neutral-50" : "bg-white"}`}
     >
       <div className="mx-auto flex w-full max-w-[26rem] flex-col items-center sm:max-w-xl">

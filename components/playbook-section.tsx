@@ -1,4 +1,7 @@
+"use client";
+
 import React from "react";
+import { track } from "@/lib/track";
 
 const PLAYBOOK_URL = "https://drive.google.com/file/d/1HfpuFoPEpsr2ijQ5ZVWE297gUL7SBnoD/view?usp=sharing"; // TODO: podmień na docelowy link do PDF
 
@@ -49,7 +52,7 @@ function FileIcon() {
 
 export function PlaybookSection() {
   return (
-    <section className="relative w-full bg-white font-sans selection:bg-orange-200 flex flex-col items-center overflow-x-hidden pt-4 pb-16 px-4 sm:px-6">
+    <section data-track-section="playbook" className="relative w-full bg-white font-sans selection:bg-orange-200 flex flex-col items-center overflow-x-hidden pt-4 pb-16 px-4 sm:px-6">
       <div className="mx-auto flex w-full max-w-[26rem] sm:max-w-xl flex-col items-center border-t border-neutral-200 pt-10">
 
         {/* Eyebrow Pill */}
@@ -94,6 +97,7 @@ export function PlaybookSection() {
         <div className="mt-8 flex w-full flex-col items-center">
           <a
             href={PLAYBOOK_URL}
+            onClick={() => track("playbook_download")}
             target="_blank"
             rel="noreferrer"
             className="inline-flex w-full max-w-md items-center justify-center gap-2 rounded-xl bg-neutral-900 px-8 py-4 text-center text-[0.95rem] sm:text-[1.05rem] font-bold uppercase tracking-wide text-white shadow-md transition-all duration-200 hover:bg-neutral-800 active:scale-[0.99]"

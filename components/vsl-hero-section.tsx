@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { useEffect, useRef } from "react";
 import Script from "next/script";
 import { RegisterForm } from "@/components/register-form";
 import {
@@ -9,6 +10,7 @@ import {
   parseHeadline,
   type AbVariant,
 } from "@/lib/ab";
+import { tag, track } from "@/lib/track";
 
 const WISTIA_MEDIA_ID = "7u92v9z9de";
 
@@ -68,13 +70,59 @@ interface VslHeroSectionProps {
   variant?: AbVariant;
 }
 
+const VSL_MILESTONES = [10, 25, 50, 75, 90] as const;
+
+/**
+ * Reports VSL engagement to Clarity: `vsl_play`, `vsl_10` … `vsl_90`,
+ * `vsl_complete`, plus a `vsl_watched` tag with the highest milestone, so
+ * heatmaps and recordings can be split by how much of the video someone saw.
+ * Uses the Aurora <wistia-player> DOM events.
+ */
+function useVslTracking(ref: React.RefObject<HTMLElement>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const reached = new Set<number>();
+    const onPlay = () => track("vsl_play", { once: true });
+    const onEnded = () => {
+      track("vsl_complete", { once: true });
+      tag("vsl_watched", "100");
+    };
+    const onPercent = (e: Event) => {
+      const detail = (e as CustomEvent).detail ?? {};
+      const raw = Number(detail.percentWatched ?? detail.percent ?? 0);
+      if (!Number.isFinite(raw)) return;
+      const pct = raw <= 1 ? raw * 100 : raw; // docs show 0–1; accept 0–100 too
+      for (const m of VSL_MILESTONES) {
+        if (pct >= m && !reached.has(m)) {
+          reached.add(m);
+          track(`vsl_${m}`, { once: true });
+          tag("vsl_watched", String(m));
+        }
+      }
+    };
+
+    el.addEventListener("play", onPlay);
+    el.addEventListener("ended", onEnded);
+    el.addEventListener("percent-watched-change", onPercent);
+    return () => {
+      el.removeEventListener("play", onPlay);
+      el.removeEventListener("ended", onEnded);
+      el.removeEventListener("percent-watched-change", onPercent);
+    };
+  }, [ref]);
+}
+
 export function VslHeroSection({ variant }: VslHeroSectionProps) {
+  const playerRef = useRef<HTMLElement>(null);
+  useVslTracking(playerRef);
   const active = variant ?? defaultVariant();
   const segments = parseHeadline(active.headline);
   const subheadline = active.subheadline ?? HEADLINE_EXPERIMENT.subheadline;
 
   return (
-    <section className="relative w-full overflow-x-hidden bg-white pt-6 font-sans selection:bg-orange-200 sm:pt-8 lg:pt-10">
+    <section data-track-section="hero" className="relative w-full overflow-x-hidden bg-white pt-6 font-sans selection:bg-orange-200 sm:pt-8 lg:pt-10">
       <div className="mx-auto w-full max-w-[25rem] px-3 pb-5 min-[390px]:pb-6 sm:max-w-[34rem] sm:px-3.5 sm:pb-8 lg:max-w-3xl lg:px-8 lg:pb-12">
         <div className="flex w-full flex-col items-center text-center">
 
@@ -133,6 +181,7 @@ export function VslHeroSection({ variant }: VslHeroSectionProps) {
               }}
             />
             <wistia-player
+              ref={playerRef}
               media-id={WISTIA_MEDIA_ID}
               aspect="1.7777777777777777"
               className="absolute inset-0 h-full w-full"
@@ -140,7 +189,7 @@ export function VslHeroSection({ variant }: VslHeroSectionProps) {
           </div>
 
           {/* KROK 2 — formularz */}
-          <div id="zapis" className="mt-6 w-full scroll-mt-4 min-[390px]:mt-7 sm:mt-8">
+          <div id="zapis" data-track-section="formularz" className="mt-6 w-full scroll-mt-4 min-[390px]:mt-7 sm:mt-8">
             <StepBar step={2} title="Złóż zgłoszenie do programu" />
 
             <div className="mt-3 flex w-full flex-col items-center min-[390px]:mt-3.5">

@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 
 import { VslHeroSection } from "@/components/vsl-hero-section";
 import { LegalFooter } from "@/components/legal-footer";
+import { SectionTracker } from "@/components/section-tracker";
 import { CaseStudiesSection } from "@/components/case-studies-section";
 import { AbViewBeacon } from "@/components/ab-view-beacon";
 import { QualificationBar } from "@/components/narrative/qualification-bar";
@@ -38,6 +39,8 @@ export default async function Home() {
   return (
     <main>
       <AbViewBeacon experimentId={HEADLINE_EXPERIMENT.id} variantId={variant.id} />
+
+      <SectionTracker page="landing" />
 
       <QualificationBar />
 
