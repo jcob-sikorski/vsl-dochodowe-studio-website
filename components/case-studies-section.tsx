@@ -297,6 +297,7 @@ export function CaseStudiesSection({ showCtaButtons = true }: CaseStudiesSection
                   >
                     <iframe
                       src={m.muxSrc}
+                      loading="lazy"
                       className="absolute inset-0 h-full w-full border-0"
                       allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
                       allowFullScreen
@@ -308,7 +309,7 @@ export function CaseStudiesSection({ showCtaButtons = true }: CaseStudiesSection
                     key={mediaIndex}
                     className={`relative ${mediaIndex === 0 ? "mt-2" : "mt-3"} w-full overflow-hidden rounded-[1.1rem] border border-neutral-200/80 shadow-xs`}
                   >
-                    <img src={m.src} alt={m.alt} className="h-auto w-full block" />
+                    <img src={m.src} alt={m.alt} loading="lazy" decoding="async" className="h-auto w-full block" />
                   </div>
                 )
               )}

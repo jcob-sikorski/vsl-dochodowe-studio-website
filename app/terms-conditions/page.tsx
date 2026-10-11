@@ -4,9 +4,10 @@ import { TermsConditionsSection } from "@/components/terms-conditions-section";
 import { LegalFooter } from "@/components/legal-footer";
 
 export const metadata: Metadata = {
-  title: "Regulamin — Sportowe Przedmieście sp. z o.o.",
+  title: "Regulamin",
   description:
     "Zasady uczestnictwa w programie oraz korzystania ze strony DochodoweStudio.com prowadzonej przez Sportowe Przedmieście sp. z o.o.",
+  alternates: { canonical: "/terms-conditions" },
 };
 
 export default function TermsConditionsPage() {

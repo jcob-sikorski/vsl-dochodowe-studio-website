@@ -145,7 +145,28 @@ export const CALL_CHECKS: string[] = [
   "Czy jesteś gotowy wdrażać od pierwszego tygodnia",
 ];
 
+/**
+ * Shown on the landing page (and the confirmation page) and mirrored 1:1 in
+ * the FAQPage structured data. The first four answer what people type into
+ * Google; the last three handle objections before the call.
+ */
 export const TEXT_FAQ: { q: string; a: string }[] = [
+  {
+    q: "Ile kosztuje otwarcie studia treningowego?",
+    a: "W naszym modelu 37–100 tys. zł, zależnie od wariantu sprzętu. START (35–45 tys. zł brutto z adaptacją) wystarcza do treningu personalnego i semi-personalnego. PRO to 60–70 tys. zł, a PREMIUM 80–100 tys. zł. Lokal ma 40–150 m², a czynsz nie powinien przekraczać 20% docelowego przychodu.",
+  },
+  {
+    q: "Ile można zarobić na studiu treningu personalnego?",
+    a: "Na sali 45 m² z czynszem ok. 5 tys. zł do ok. 40 tys. zł zysku operacyjnego wystarcza 45–50 aktywnych klientów. Właściciele w naszym modelu wyciągają 20–50 tys. zł zysku miesięcznie przy marży 50–80%. Wyniki są zróżnicowane i zależą od wdrożenia.",
+  },
+  {
+    q: "Jaki lokal wybrać na studio treningowe?",
+    a: "Wystarczy 40–150 m², parking, proste wejście i sensowna wentylacja. Nie potrzebujesz recepcji, wielkich witryn ani prestiżowego adresu. Przed podpisaniem umowy najmu przechodzimy z uczestnikami przez 20 pytań, które chronią przed najdroższymi błędami.",
+  },
+  {
+    q: "Jak pozyskać klientów do studia treningowego?",
+    a: "Reklamą opartą na problemie klienta, płatnym treningiem diagnostycznym i jedną ofertą: 90-dniową transformacją. W naszym modelu pozyskanie klienta, który kupuje pakiet, kosztuje 100–200 zł, a na start wystarcza ok. 3 tys. zł budżetu reklamowego.",
+  },
   {
     q: "Czy każdy zostaje przyjęty?",
     a: "Nie. Skoro bierzemy odpowiedzialność za Twój wynik, przyjmujemy tylko osoby, którym jesteśmy w stanie go dowieźć. Jeśli na rozmowie uznamy, że to nie jest Twój moment, usłyszysz to od nas uczciwie.",

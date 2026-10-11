@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { LegalFooter } from "@/components/legal-footer";
 import { SectionTracker } from "@/components/section-tracker";
 
@@ -18,6 +19,13 @@ import { TextFaqSection } from "@/components/narrative/text-faq-section";
  *   → playbook → why this decision (okno / rozwidlenie / selekcja)
  *   → written FAQ → video FAQ → interviews → case studies
  */
+// A thank-you page has nothing to rank for, and an indexed one lets people
+// skip the form. noindex, but links stay followable.
+export const metadata: Metadata = {
+  title: "Zgłoszenie przyjęte",
+  robots: { index: false, follow: true },
+};
+
 export default function ConfirmationPage() {
   return (
     <main>

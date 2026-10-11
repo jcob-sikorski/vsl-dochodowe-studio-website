@@ -14,6 +14,11 @@ import { getSupabase } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+export const metadata = {
+  title: "Dashboard",
+  robots: { index: false, follow: false },
+};
+
 /* -------------------------------------------------------------------------- *
  * Types
  * -------------------------------------------------------------------------- */
@@ -720,6 +725,7 @@ const LANDING_SECTIONS: [string, string][] = [
   ["rozwidlenie", "Rozwidlenie + slider"],
   ["co-zyskujesz", "Co zyskujesz (powody)"],
   ["dla-kogo", "Kwalifikacja (dla kogo)"],
+  ["pytania", "FAQ"],
   ["historie", "Historie uczestników"],
   ["decyzja", "Final decision + CTA"],
   ["stopka", "Footer"],

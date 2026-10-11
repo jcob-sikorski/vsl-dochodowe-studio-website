@@ -4,7 +4,8 @@ import { PrivacyPolicySection } from "@/components/privacy-policy-section";
 import { LegalFooter } from "@/components/legal-footer";
 
 export const metadata: Metadata = {
-  title: "Polityka Prywatności — Sportowe Przedmieście sp. z o.o.",
+  title: "Polityka prywatności",
+  alternates: { canonical: "/privacy-policy" },
   description:
     "Zasady przetwarzania i ochrony danych osobowych przez Sportowe Przedmieście sp. z o.o.",
 };

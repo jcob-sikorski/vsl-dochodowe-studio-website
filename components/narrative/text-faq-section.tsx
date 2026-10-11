@@ -4,11 +4,19 @@ import { NarrativeShell, SectionHeader } from "@/components/narrative/section-he
 import { TEXT_FAQ } from "@/lib/narrative";
 import { track } from "@/lib/track";
 
-/** Written FAQ — native <details>, no JS needed. */
-export function TextFaqSection() {
+/** Written FAQ — native <details>. The same items feed the FAQPage JSON-LD. */
+export function TextFaqSection({
+  eyebrow = "Zanim zadzwonimy",
+  before = "Pytania, które",
+  underline = "słyszymy najczęściej",
+}: {
+  eyebrow?: string;
+  before?: string;
+  underline?: string;
+} = {}) {
   return (
     <NarrativeShell tone="panel" id="pytania">
-      <SectionHeader eyebrow="Zanim zadzwonimy" before="Pytania, które" underline="słyszymy najczęściej" />
+      <SectionHeader eyebrow={eyebrow} before={before} underline={underline} />
       <div className="mt-7 w-full space-y-2.5">
         {TEXT_FAQ.map((f, i) => (
           <details

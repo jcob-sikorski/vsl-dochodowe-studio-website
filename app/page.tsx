@@ -11,6 +11,8 @@ import { CrossroadsSection } from "@/components/narrative/crossroads-section";
 import { ReasonsSection } from "@/components/narrative/reasons-section";
 import { SelectionSection } from "@/components/narrative/selection-section";
 import { FinalDecisionSection } from "@/components/narrative/final-decision-section";
+import { TextFaqSection } from "@/components/narrative/text-faq-section";
+import { StructuredData } from "@/components/structured-data";
 import {
   AB_VARIANT_COOKIE,
   HEADLINE_EXPERIMENT,
@@ -54,11 +56,15 @@ export default async function Home() {
 
       <SelectionSection />
 
+      <TextFaqSection eyebrow="Pytania" before="Najczęstsze pytania o" underline="własne studio" />
+
       <CaseStudiesSection />
 
       <FinalDecisionSection />
 
       <LegalFooter />
+
+      <StructuredData />
     </main>
   );
 }

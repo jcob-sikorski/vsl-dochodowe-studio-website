@@ -59,6 +59,7 @@ export function FaqVideosSection() {
               <div className="relative w-full overflow-hidden rounded-2xl bg-black shadow-2xl">
                 <iframe
                   src={item.videoUrl}
+                  loading="lazy"
                   title={item.question}
                   style={{ width: "100%", display: "block", border: "none", aspectRatio: "53/29" }}
                   allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
