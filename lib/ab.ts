@@ -77,21 +77,25 @@ export const HEADLINE_EXPERIMENT: AbExperiment = {
       {
         id: "control",
         label: "A — Gotowy model i niezależność",
-        weight: 34,
+        weight: 50,
         headline:
           "Wdróż sprawdzony model studia treningowego i generuj 20–50 tys. zł miesięcznie dzięki procesom, sprzedaży i zespołowi — bez prowadzenia treningów",
       },
       {
         id: "b",
         label: "B — Gotowy model A–Z",
-        weight: 33,
+        weight: 50,
         headline:
           "Nie buduj studia metodą prób i błędów. Wdróż gotowy model od A do Z do 20–50 tys. zł miesięcznie",
       },
       {
         id: "c",
         label: "C — Studio bez Ciebie na sali",
-        weight: 33,
+        // Killed 2026-10-11: weight 0 = no NEW visitors get C. Kept in the list
+        // (not deleted) so browsers already assigned C keep seeing the same
+        // headline and their data stays valid. A and B still split evenly, so
+        // the A-vs-B comparison is unaffected and the test id stays the same.
+        weight: 0,
         headline:
           "Zbuduj studio, które generuje 20–50 tys. zł miesięcznie dzięki procesom, sprzedaży i zespołowi — bez Ciebie na sali",
       },
