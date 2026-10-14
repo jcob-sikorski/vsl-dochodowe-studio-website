@@ -14,7 +14,7 @@ const DWELL_MS = 1000;
  * was seen), so in Clarity you can filter recordings and heatmaps to, e.g.,
  * "people who got to the qualification section but never tapped a CTA".
  */
-export function SectionTracker({ page }: { page: "landing" | "confirm" }) {
+export function SectionTracker({ page }: { page: "landing" | "materials" }) {
   useEffect(() => {
     if (typeof navigator !== "undefined" && navigator.webdriver) return;
 

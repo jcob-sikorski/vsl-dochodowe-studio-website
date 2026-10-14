@@ -40,6 +40,8 @@ import { ScrollToFormCta } from "@/components/scroll-to-form-cta";
 interface CaseStudiesSectionProps {
   /** Show the "scroll to form" CTA buttons after each case study. Defaults to true. */
   showCtaButtons?: boolean;
+  /** `grid`: masonry columns from tablet up instead of one long column (used on /materialy). */
+  layout?: "stack" | "grid";
 }
 
 type CaseStudyMedia =
@@ -263,10 +265,69 @@ const CASE_STUDIES: CaseStudy[] = [
   },
 ];
 
-export function CaseStudiesSection({ showCtaButtons = true }: CaseStudiesSectionProps) {
+export function CaseStudiesSection({ showCtaButtons = true, layout = "stack" }: CaseStudiesSectionProps) {
+  const grid = layout === "grid";
+
+  const items = CASE_STUDIES.map((cs, index) => (
+    <React.Fragment key={cs.locationKey}>
+      <div
+        className={
+          grid
+            ? "mb-8 flex w-full break-inside-avoid flex-col items-center sm:mb-9"
+            : `flex w-full flex-col items-center ${index === 0 ? "mt-6" : "mt-7"}`
+        }
+      >
+        <h3
+          className={
+            grid
+              ? "text-center text-[1.12rem] font-bold leading-[1.18] tracking-tight text-neutral-900 min-[390px]:text-[1.2rem] lg:text-[1.15rem]"
+              : "text-center text-[1.12rem] min-[390px]:text-[1.24rem] sm:text-[1.38rem] font-bold leading-[1.18] tracking-tight text-neutral-900"
+          }
+        >
+          {cs.name}:<br />{cs.achievement}
+        </h3>
+
+        {cs.media.map((m, mediaIndex) =>
+          m.type === "video" ? (
+            <div
+              key={mediaIndex}
+              className={`relative ${mediaIndex === 0 ? "mt-2" : "mt-3"} w-full overflow-hidden rounded-[1.1rem] border border-neutral-200/80 bg-black shadow-xs ${m.aspectClass}`}
+            >
+              <iframe
+                src={m.muxSrc}
+                loading="lazy"
+                className="absolute inset-0 h-full w-full border-0"
+                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                allowFullScreen
+                title={`${cs.name} — case study`}
+              />
+            </div>
+          ) : (
+            <div
+              key={mediaIndex}
+              className={`relative ${mediaIndex === 0 ? "mt-2" : "mt-3"} w-full overflow-hidden rounded-[1.1rem] border border-neutral-200/80 shadow-xs`}
+            >
+              <img src={m.src} alt={m.alt} loading="lazy" decoding="async" className="h-auto w-full block" />
+            </div>
+          )
+        )}
+
+        {showCtaButtons && (
+          <div className="mt-5 w-full">
+            <ScrollToFormCta location={cs.locationKey} />
+          </div>
+        )}
+      </div>
+    </React.Fragment>
+  ));
+
   return (
     <section data-track-section="historie" className="w-full bg-white pt-1 pb-12 px-4 sm:px-6">
-      <div className="mx-auto flex w-full max-w-[22.5rem] sm:max-w-[25.5rem] flex-col items-center">
+      <div
+        className={`mx-auto flex w-full max-w-[22.5rem] flex-col items-center ${
+          grid ? "sm:max-w-xl md:max-w-3xl lg:max-w-5xl" : "sm:max-w-[25.5rem]"
+        }`}
+      >
         {/* Top Highlighter Header */}
         <div className="inline-block bg-[#faea75] px-5 min-[390px]:px-6 py-1 text-center">
           <h2 className="text-[1.2rem] min-[390px]:text-[1.35rem] sm:text-[1.5rem] font-bold leading-tight tracking-tight text-black">
@@ -282,49 +343,14 @@ export function CaseStudiesSection({ showCtaButtons = true }: CaseStudiesSection
         </p>
 
         {/* ================= CASE STUDIES (one shared structure, media can repeat) ================= */}
-        {CASE_STUDIES.map((cs, index) => (
-          <React.Fragment key={cs.locationKey}>
-            <div className={`flex w-full flex-col items-center ${index === 0 ? "mt-6" : "mt-7"}`}>
-              <h3 className="text-center text-[1.12rem] min-[390px]:text-[1.24rem] sm:text-[1.38rem] font-bold leading-[1.18] tracking-tight text-neutral-900">
-                {cs.name}:<br />{cs.achievement}
-              </h3>
-
-              {cs.media.map((m, mediaIndex) =>
-                m.type === "video" ? (
-                  <div
-                    key={mediaIndex}
-                    className={`relative ${mediaIndex === 0 ? "mt-2" : "mt-3"} w-full overflow-hidden rounded-[1.1rem] border border-neutral-200/80 bg-black shadow-xs ${m.aspectClass}`}
-                  >
-                    <iframe
-                      src={m.muxSrc}
-                      loading="lazy"
-                      className="absolute inset-0 h-full w-full border-0"
-                      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                      allowFullScreen
-                      title={`${cs.name} — case study`}
-                    />
-                  </div>
-                ) : (
-                  <div
-                    key={mediaIndex}
-                    className={`relative ${mediaIndex === 0 ? "mt-2" : "mt-3"} w-full overflow-hidden rounded-[1.1rem] border border-neutral-200/80 shadow-xs`}
-                  >
-                    <img src={m.src} alt={m.alt} loading="lazy" decoding="async" className="h-auto w-full block" />
-                  </div>
-                )
-              )}
-            </div>
-
-            {showCtaButtons && (
-              <div className="mt-5 w-full">
-                <ScrollToFormCta location={cs.locationKey} />
-              </div>
-            )}
-          </React.Fragment>
-        ))}
+        {grid ? (
+          <div className="mt-6 w-full columns-1 gap-6 sm:columns-2 lg:mt-8 lg:columns-3 lg:gap-7">{items}</div>
+        ) : (
+          items
+        )}
 
         {/* Bottom Highlighter Banner */}
-        <div className="mt-8 sm:mt-10 flex w-full justify-center">
+        <div className={`mt-8 sm:mt-10 flex w-full justify-center ${grid ? "max-w-xl lg:mt-4" : ""}`}>
           <div className="w-[90%] sm:w-[85%] bg-[#faea75] py-1 sm:py-1.5 text-center">
             <h3 className="text-[1.18rem] min-[390px]:text-[1.32rem] sm:text-[1.48rem] font-bold leading-tight tracking-tight text-neutral-950">
               I{" "}

@@ -39,18 +39,25 @@ export function NarrativeShell({
   children,
   tone = "white",
   id,
+  width = "narrow",
 }: {
   children: React.ReactNode;
   tone?: "white" | "panel";
   id?: string;
+  /** `wide` lets data-heavy sections use the desktop width (used on /materialy). */
+  width?: "narrow" | "wide";
 }) {
   return (
     <section
       id={id}
       data-track-section={id}
-      className={`w-full px-4 py-12 sm:px-6 sm:py-16 ${tone === "panel" ? "bg-neutral-50" : "bg-white"}`}
+      className={`w-full scroll-mt-14 px-4 py-12 sm:px-6 sm:py-16 ${width === "wide" ? "lg:py-20" : ""} ${tone === "panel" ? "bg-neutral-50" : "bg-white"}`}
     >
-      <div className="mx-auto flex w-full max-w-[26rem] flex-col items-center sm:max-w-xl">
+      <div
+        className={`mx-auto flex w-full max-w-[26rem] flex-col items-center sm:max-w-xl ${
+          width === "wide" ? "md:max-w-3xl lg:max-w-5xl" : ""
+        }`}
+      >
         {children}
       </div>
     </section>

@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // /see-you was replaced by /materialy. Old links (emails, CRM, bookmarks)
+  // keep working; the query string is carried over.
+  async redirects() {
+    return [{ source: "/see-you", destination: "/materialy", permanent: true }];
+  },
+
   // Hostnames allowed to load /_next/* assets from the dev server.
   // Dev-only: Next ignores this in production builds.
   allowedDevOrigins: [

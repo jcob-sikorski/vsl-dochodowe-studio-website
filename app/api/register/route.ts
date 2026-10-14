@@ -77,7 +77,7 @@ export async function POST(request: Request) {
   /* ---------- 4. honeypot: look successful, do nothing ---------------- */
   if (input.isBot) {
     console.warn(`[register] honeypot triggered from ${clientIp}`);
-    return json({ success: true, redirectTo: "/see-you" }, 200);
+    return json({ success: true, redirectTo: "/materialy?zgloszenie=1" }, 200);
   }
 
   /* ---------- 5. attribution enrichment ------------------------------ */
@@ -207,7 +207,7 @@ export async function POST(request: Request) {
     /** The browser fires its pixel event with this exact ID for deduplication. */
     eventId,
     capiDelivered: meta.ok,
-    redirectTo: "/see-you",
+    redirectTo: "/materialy?zgloszenie=1",
   });
 }
 

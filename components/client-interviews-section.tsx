@@ -115,7 +115,38 @@ function InterviewThumbnail({ id, title, position }: { id: string; title: string
   );
 }
 
-export function ClientInterviewsSection() {
+export function ClientInterviewsSection({
+  layout = "stack",
+}: {
+  /** `grid`: 2–3 columns from tablet up, thumbnail first (used on /materialy). */
+  layout?: "stack" | "grid";
+} = {}) {
+  if (layout === "grid") {
+    return (
+      <section data-track-section="wywiady" className="w-full bg-white px-4 pb-12 pt-1 sm:px-6 lg:pb-16">
+        <div className="mx-auto flex w-full max-w-[22.5rem] flex-col items-center sm:max-w-xl md:max-w-3xl lg:max-w-5xl">
+          <div className="inline-block bg-[#faea75] px-5 py-1 text-center min-[390px]:px-6">
+            <h2 className="text-[1.2rem] font-bold leading-tight tracking-tight text-black min-[390px]:text-[1.35rem] sm:text-[1.5rem]">
+              Wywiady{" "}
+              <span className="underline decoration-black decoration-[2px] underline-offset-[2px]">z klientami</span>
+            </h2>
+          </div>
+
+          <ul className="mt-6 grid w-full grid-cols-1 gap-x-5 gap-y-7 sm:grid-cols-2 lg:mt-8 lg:grid-cols-3 lg:gap-y-9">
+            {INTERVIEW_VIDEOS.map((video, index) => (
+              <li key={video.id} className="flex w-full flex-col">
+                <InterviewThumbnail id={video.id} title={video.title} position={index + 1} />
+                <h3 className="mt-2.5 text-[1rem] font-bold leading-[1.3] tracking-tight text-neutral-900 sm:text-[0.98rem] lg:text-[1.02rem]">
+                  {video.title}
+                </h3>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section data-track-section="wywiady" className="w-full bg-white pt-1 pb-12 px-4 sm:px-6">
       <div className="mx-auto flex w-full max-w-[22.5rem] sm:max-w-[25.5rem] flex-col items-center">

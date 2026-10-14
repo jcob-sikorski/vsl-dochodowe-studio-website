@@ -31,10 +31,16 @@ const FAQ_VIDEOS: FaqVideo[] = [
   }
 ];
 
-export function FaqVideosSection() {
+export function FaqVideosSection({
+  layout = "stack",
+}: {
+  /** `grid`: two videos per row from desktop up (used on /materialy). */
+  layout?: "stack" | "grid";
+} = {}) {
+  const grid = layout === "grid";
   return (
     <section data-track-section="faq_wideo" className="relative w-full bg-white font-sans selection:bg-orange-200 flex flex-col items-center overflow-x-hidden pt-4 pb-14 px-4 sm:px-6">
-      <div className="mx-auto flex w-full max-w-[28rem] sm:max-w-xl md:max-w-2xl flex-col items-center">
+      <div className={`mx-auto flex w-full max-w-[28rem] sm:max-w-xl md:max-w-2xl flex-col items-center ${grid ? "lg:max-w-5xl" : ""}`}>
 
         {/* Eyebrow Pill */}
         <div className="inline-flex items-center justify-center rounded-full border-[1.5px] border-neutral-300 bg-neutral-50 px-3.5 py-1 shadow-2xs">
@@ -52,7 +58,7 @@ export function FaqVideosSection() {
         </h2>
 
         {/* Videos Stack with Titles at the Bottom */}
-        <div className="mt-7 flex w-full flex-col gap-8 sm:gap-10">
+        <div className={`mt-7 w-full ${grid ? "grid grid-cols-1 gap-8 sm:gap-10 lg:grid-cols-2 lg:gap-x-8 lg:gap-y-10" : "flex flex-col gap-8 sm:gap-10"}`}>
           {FAQ_VIDEOS.map((item) => (
             <div key={item.id} className="flex w-full flex-col items-center">
               {/* Video Frame — same treatment as the hero VSL: black bg, no colored border */}

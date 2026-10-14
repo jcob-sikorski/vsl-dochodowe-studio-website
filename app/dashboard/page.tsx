@@ -94,7 +94,7 @@ type SearchParams = Record<string, string | string[] | undefined>;
 /** One row of engagement_report(): visitors who did `event` on `page`. */
 interface EngagementRow {
   variant_id: string | null;
-  page: "landing" | "confirm";
+  page: "landing" | "materials";
   event: string;
   visitors: number | string;
   hits: number | string;
@@ -731,16 +731,22 @@ const LANDING_SECTIONS: [string, string][] = [
   ["stopka", "Footer"],
 ];
 
-const CONFIRM_SECTIONS: [string, string][] = [
-  ["wiadomosc", "Thank-you video"],
-  ["co-teraz", "Co dzieje się teraz"],
-  ["przygotowanie", "Przygotowanie do rozmowy"],
-  ["playbook", "Playbook"],
-  ["dlaczego-to-dobra-decyzja", "Recap (okno / rozwidlenie / selekcja)"],
-  ["pytania", "Written FAQ"],
-  ["faq_wideo", "Video FAQ"],
+/** /materialy — the post-form page and the setter's mandatory pre-call link. */
+const MATERIALS_SECTIONS: [string, string][] = [
+  ["zasady", "Zasada + 3 kroki"],
+  ["model", "1 · Kim jesteśmy + studia Bartka"],
+  ["dla-kogo", "2 · Dla kogo"],
+  ["liczby", "3 · Liczby dla właściciela"],
+  ["sciezka-klienta", "4 · Ścieżka klienta"],
+  ["playbook", "5 · Playbook"],
+  ["co-dostajesz", "6 · Co dostajesz"],
+  ["wsparcie", "7 · Wsparcie"],
+  ["polecajki", "8 · Polecajki"],
   ["wywiady", "Client interviews"],
   ["historie", "Historie uczestników"],
+  ["faq_wideo", "Video FAQ"],
+  ["sprawdz-nas", "9 · Sprawdź nas"],
+  ["nastepny-krok", "10 · Rozmowa decyzyjna"],
   ["stopka", "Footer"],
 ];
 
@@ -762,7 +768,23 @@ const CTA_LABELS: Record<string, string> = {
   final_decision: "Final section",
 };
 
+const MATERIALS_TAP_LABELS: Record<string, string> = {
+  arrived_form: "Arrived straight from the application form",
+  ready: "Ticked all 3 steps (ready for the call)",
+  check_model: "Ticked: read the model",
+  check_playbook: "Ticked: playbook",
+  check_polecajki: "Ticked: watched 2 videos",
+  maps: "Opened Google Maps card",
+  youtube: "Opened YouTube channel",
+};
+
 function tapLabel(event: string): string {
+  if (event.startsWith("cta_materialy_")) {
+    const key = event.slice("cta_materialy_".length);
+    if (key.startsWith("nav_")) return `Menu → ${key.slice(4)}`;
+    if (key.startsWith("studio_")) return `Opened studio on Maps: ${key.slice(7)}`;
+    return MATERIALS_TAP_LABELS[key] ?? key;
+  }
   if (event.startsWith("cta_case_study_")) return `Under case study #${event.slice("cta_case_study_".length)}`;
   if (event.startsWith("cta_")) return CTA_LABELS[event.slice(4)] ?? event.slice(4);
   if (event.startsWith("faq_text_open_")) return `Opened written FAQ #${event.slice("faq_text_open_".length)}`;
@@ -783,7 +805,7 @@ interface EventStat {
   byVariant: Map<string, number>;
 }
 
-function aggregate(rows: EngagementRow[], page: "landing" | "confirm") {
+function aggregate(rows: EngagementRow[], page: "landing" | "materials") {
   const out = new Map<string, EventStat>();
   for (const r of rows) {
     if (r.page !== page) continue;
@@ -943,11 +965,11 @@ function Engagement({ rows, error }: { rows: EngagementRow[]; error?: string }) 
   }
 
   const landing = aggregate(rows, "landing");
-  const confirm = aggregate(rows, "confirm");
+  const materials = aggregate(rows, "materials");
   const landingBase = landing.get("pageview_landing")?.visitors ?? 0;
-  const confirmBase = confirm.get("pageview_confirm")?.visitors ?? 0;
+  const materialsBase = materials.get("pageview_materials")?.visitors ?? 0;
 
-  if (landingBase === 0 && confirmBase === 0) {
+  if (landingBase === 0 && materialsBase === 0) {
     return (
       <Notice
         title="No engagement data in this range"
@@ -960,14 +982,14 @@ function Engagement({ rows, error }: { rows: EngagementRow[]; error?: string }) 
 
   const landingSteps = LANDING_SECTIONS.map(([id, label]) => ({ label, value: get(landing, `section_landing_${id}`) }));
   const vslSteps = VSL_STEPS.map(([e, label]) => ({ label, value: get(landing, e) }));
-  const confirmSteps = CONFIRM_SECTIONS.map(([id, label]) => ({ label, value: get(confirm, `section_confirm_${id}`) }));
+  const materialsSteps = MATERIALS_SECTIONS.map(([id, label]) => ({ label, value: get(materials, `section_materials_${id}`) }));
 
   const landingTaps = [...landing.keys()].filter((e) => e.startsWith("cta_") || e.startsWith("form_") || e === "cost_slider_used");
-  const confirmTaps = [...confirm.keys()].filter(
-    (e) => e.startsWith("faq_") || e.startsWith("interview_") || e === "playbook_download"
+  const materialsTaps = [...materials.keys()].filter(
+    (e) => e.startsWith("cta_materialy_") || e.startsWith("interview_") || e === "playbook_download"
   );
 
-  // The landing visitors who went on to open the confirmation page.
+  // The landing visitors who went on to open /materialy.
   const submitted = get(landing, "form_submitted");
 
   return (
@@ -1006,16 +1028,19 @@ function Engagement({ rows, error }: { rows: EngagementRow[]; error?: string }) 
       <h2 className="h2">Landing · taps</h2>
       <TapTable stats={landing} base={landingBase} events={landingTaps} />
 
-      <h2 className="h2">Confirmation page · sections reached</h2>
-      {confirmBase === 0 ? (
-        <Notice title="No confirmation-page visits in this range" body="Nobody in this cohort has opened /see-you yet." />
+      <h2 className="h2">Materiały (/materialy) · sections reached</h2>
+      {materialsBase === 0 ? (
+        <Notice
+          title="No /materialy visits in this range"
+          body="Nobody in this cohort has opened /materialy yet. If people have, run supabase/migrations/2026-10-14_materials_page.sql — until then the database rejects these events."
+        />
       ) : (
         <>
           <div className="card">
-            <ReachBars steps={confirmSteps} base={confirmBase} />
+            <ReachBars steps={materialsSteps} base={materialsBase} />
           </div>
-          <h2 className="h2">Confirmation page · taps</h2>
-          <TapTable stats={confirm} base={confirmBase} events={confirmTaps} />
+          <h2 className="h2">Materiały (/materialy) · taps</h2>
+          <TapTable stats={materials} base={materialsBase} events={materialsTaps} />
         </>
       )}
 

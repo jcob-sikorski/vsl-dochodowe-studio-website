@@ -31,19 +31,19 @@ export const PAGE_VERSION = "narrative_v1";
 const ENDPOINT = "/api/track";
 const FLUSH_AFTER_MS = 2000;
 
-type Page = "landing" | "confirm";
+type Page = "landing" | "materials";
 interface Queued {
   event: string;
   value?: string;
 }
 
 const fired = new Set<string>();
-const queues: Record<Page, Queued[]> = { landing: [], confirm: [] };
+const queues: Record<Page, Queued[]> = { landing: [], materials: [] };
 let flushTimer: number | undefined;
 let listening = false;
 
 function currentPage(): Page {
-  return window.location.pathname.startsWith("/see-you") ? "confirm" : "landing";
+  return window.location.pathname.startsWith("/materialy") ? "materials" : "landing";
 }
 
 function isBot(): boolean {
@@ -56,7 +56,7 @@ export function flush(): void {
   window.clearTimeout(flushTimer);
   flushTimer = undefined;
 
-  for (const page of ["landing", "confirm"] as Page[]) {
+  for (const page of ["landing", "materials"] as Page[]) {
     const events = queues[page].splice(0, queues[page].length);
     if (events.length === 0) continue;
 

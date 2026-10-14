@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     return noContent();
   }
 
-  const page = body.page === "landing" || body.page === "confirm" ? body.page : null;
+  const page = body.page === "landing" || body.page === "materials" ? body.page : null;
   if (!page) return noContent();
 
   const viewport = body.viewport === "mobile" || body.viewport === "desktop" ? body.viewport : undefined;

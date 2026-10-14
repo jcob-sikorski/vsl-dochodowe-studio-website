@@ -310,7 +310,7 @@ export { isSupabaseConfigured };
 export interface PageEventsInput {
   experimentId: string;
   visitorId: string;
-  page: "landing" | "confirm";
+  page: "landing" | "materials";
   viewport?: "mobile" | "desktop";
   pageVersion?: string;
   events: { event: string; value?: string }[];
