@@ -7,11 +7,17 @@ export function AboutSection() {
   return (
     <>
       <NarrativeShell tone="panel" id="model" width="wide">
-        <SectionHeader eyebrow="1 · Kim jesteśmy" before="Franczyza" underline="bez franczyzy" />
+        <SectionHeader eyebrow="1 · Kim jesteśmy" before="Program" underline="wdrożeniowy" />
 
         <p className="mt-4 max-w-xl text-center text-[0.9rem] leading-[1.55] text-neutral-700 sm:text-[0.98rem] lg:text-[1.02rem]">
           Dochodowe Studio to program dla właścicieli studiów. Dajemy gotowy system, który pozwala zbudować{" "}
           <strong className="font-extrabold text-neutral-900">wysokomarżowe studio</strong> i otwierać kolejne placówki.
+        </p>
+
+        <p className="mt-3 inline-flex max-w-xl flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full border border-neutral-200 bg-white px-4 py-1.5 text-center text-[0.8rem] font-semibold text-neutral-800 sm:text-[0.86rem]">
+          <span>Jednorazowa inwestycja</span>
+          <span className="text-neutral-300" aria-hidden="true">·</span>
+          <span>program trwa <strong className="font-extrabold text-[#c2410c]">6 miesięcy</strong></span>
         </p>
 
         <dl className="mt-6 grid w-full grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">

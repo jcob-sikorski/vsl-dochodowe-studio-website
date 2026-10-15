@@ -118,7 +118,7 @@ function InterviewThumbnail({ id, title, position }: { id: string; title: string
 export function ClientInterviewsSection({
   layout = "stack",
 }: {
-  /** `grid`: 2–3 columns from tablet up, thumbnail first (used on /materialy). */
+  /** `grid`: 2–3 columns from tablet up, thumbnail first (used on /przygotowanie). */
   layout?: "stack" | "grid";
 } = {}) {
   if (layout === "grid") {

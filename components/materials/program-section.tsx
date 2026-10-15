@@ -59,7 +59,7 @@ export function ProgramSection() {
           <p className="mt-2 text-[0.86rem] leading-[1.6] text-neutral-300 lg:mt-0 lg:text-[0.95rem]">
             Bartek wydał już setki tysięcy złotych i 6 lat na głupie i kosztowne błędy, budując Sportowe Przedmieście. Dzięki temu Ty dostajesz{" "}
             <strong className="text-white">5–10 godzin pracy w tygodniu</strong> jako właściciel i{" "}
-            <strong className="text-white">20–50 tys. zł zysku miesięcznie</strong> (rekordzistka: 54 tys. zł) — za ułamek tej kwoty.
+            <strong className="text-white">20–50 tys. zł zysku miesięcznie</strong> (rekordzistka z Silna Studio Kraków: 54 tys. zł) — za ułamek tej kwoty.
           </p>
         </div>
       </NarrativeShell>

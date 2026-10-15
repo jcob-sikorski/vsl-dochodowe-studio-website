@@ -44,7 +44,7 @@ export function NarrativeShell({
   children: React.ReactNode;
   tone?: "white" | "panel";
   id?: string;
-  /** `wide` lets data-heavy sections use the desktop width (used on /materialy). */
+  /** `wide` lets data-heavy sections use the desktop width (used on /przygotowanie). */
   width?: "narrow" | "wide";
 }) {
   return (

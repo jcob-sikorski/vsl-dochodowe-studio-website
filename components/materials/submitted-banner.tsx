@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { track } from "@/lib/track";
 
 /**
- * /materialy is also the page after the application form (it replaced
+ * /przygotowanie is also the page after the application form (it replaced
  * /see-you). The form redirects here with ?zgloszenie=1, so those visitors
  * first see that the application went through and what happens next.
  * Visitors from the setter's link don't see this strip.

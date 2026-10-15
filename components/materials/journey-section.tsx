@@ -45,7 +45,7 @@ export function JourneySection() {
         ))}
       </ol>
 
-      <div className="mt-5 grid w-full grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="mt-5 w-full">
         {/* Unit economics in one line */}
         <div className="flex w-full flex-col justify-center rounded-2xl bg-neutral-900 p-5 text-white sm:p-6">
           <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.16em] text-neutral-400">Ekonomia jednego klienta</p>
@@ -61,14 +61,6 @@ export function JourneySection() {
             </div>
           </div>
           <p className="mt-4 text-center text-[0.9rem] font-extrabold">Zwrot rzędu 200×</p>
-        </div>
-
-        {/* A taste of the program */}
-        <div className="w-full rounded-2xl border-2 border-[#faea75] bg-[#fffbe0] p-4 sm:p-5 lg:p-6">
-          <p className="text-[0.66rem] font-extrabold uppercase tracking-[0.16em] text-neutral-700">Wskazówka z programu</p>
-          <p className="mt-1.5 text-[0.88rem] leading-[1.6] text-neutral-800 lg:text-[0.92rem]">
-            Wystaw materiały sprzedażowe przed wejściem do studia — zdjęcia z wyjazdów i transformacje klientów. To podgrzewa klientów, zanim jeszcze wejdą do środka. Takich wskazówek, wziętych z życia, raczej nie znajdziesz w internecie — to przedsmak tego, co dostajesz w programie.
-          </p>
         </div>
       </div>
     </NarrativeShell>

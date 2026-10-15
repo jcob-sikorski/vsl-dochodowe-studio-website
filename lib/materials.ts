@@ -1,7 +1,7 @@
 /* -------------------------------------------------------------------------- *
  * lib/materials.ts
  *
- * Content of /materialy — the MANDATORY pre-call page the setter sends before
+ * Content of /przygotowanie — the MANDATORY pre-call page the setter sends before
  * every decision call. It replaces the pre-consultation email sequence: what
  * the emails used to explain (who we are, the model and why it looks like
  * this, who we worked with) now lives here, in one place.
@@ -26,15 +26,15 @@ export const MATERIALS_CHECKLIST: { id: string; title: string; body: string; tim
   },
   {
     id: "playbook",
-    title: "Przekartkuj Playbook (PDF)",
+    title: "Przeczytaj Playbook (PDF)",
     body: "Cały model od podszewki i dlaczego wygląda właśnie tak. Obowiązkowy.",
     time: "ok. 20 min",
     href: "#playbook",
   },
   {
     id: "polecajki",
-    title: "Obejrzyj min. 2 polecajki",
-    body: "Wywiady z właścicielami studiów, którzy już wdrożyli ten model.",
+    title: "Obejrzyj min. 2 wywiady z właścicielami studiów",
+    body: "Rozmowy z osobami, które już wdrożyły ten model w swoich studiach.",
     time: "ok. 15 min",
     href: "#polecajki",
   },
@@ -46,7 +46,7 @@ export const ABOUT_STATS: { value: string; label: string }[] = [
   { value: "4", label: "własne studia Bartka (Sportowe Przedmieście)" },
   { value: "~50", label: "studiów, z którymi już pracowaliśmy" },
   { value: "60+", label: "właścicieli obecnie w programie" },
-  { value: "~3 lata", label: "drogi prób i błędów, którą pomijasz" },
+  { value: "87%", label: "uczestników otwiera kolejne placówki" },
 ];
 
 /**
@@ -113,9 +113,9 @@ export const BARTEK_STUDIOS: {
 /* ---------------- Dla kogo ------------------------------------------------ */
 
 export const FIT_SPEC: { label: string; value: string }[] = [
-  { label: "Typ studia", value: "Trening personalny, pilates, EMS, boks / klub walki, physio" },
-  { label: "Metraż", value: "40–150 m² (czasem do 200 m²)" },
-  { label: "Lokalizacja", value: "Zwykle przedmieścia — niższe koszty" },
+  { label: "Typ studia", value: "Trening personalny, pilates, EMS, boks / klub walki, fizjo" },
+  { label: "Metraż", value: "40–150 m² łącznie (czasem do 200 m²): sala treningowa + łazienka i szatnia poza salą" },
+  { label: "Lokalizacja", value: "Miasto powyżej 5,000 mieszkańców" },
   { label: "Etap", value: "Nowe studia oraz istniejące, które chcą się naprawić — wdrażamy im wszystkie systemy" },
 ];
 
@@ -123,7 +123,7 @@ export const END_CLIENT: string[] = [
   "Klient premium, zwykle po 35. roku życia",
   "Ma konkretny ból: problem zdrowotny albo sylwetka",
   "Ma pieniądze i dojedzie do 20 minut samochodem",
-  "Dlatego studio powinno mieć parking",
+  "Warto, aby studio miało parking",
 ];
 
 /* ---------------- Liczby dla właściciela ---------------------------------- */
@@ -132,7 +132,7 @@ export const OWNER_KPIS: { label: string; value: string; note: string; accent?: 
   {
     label: "Zysk właściciela",
     value: "20–50 tys. zł / mies.",
-    note: "Rekordzistka: 54 tys. zł miesięcznie.",
+    note: "rekordzistka z Silna Studio Kraków: 54 tys. zł miesięcznie.",
     accent: true,
   },
   {
@@ -249,7 +249,7 @@ export const PROGRAM_PILLARS: { title: string; body: string; points?: string[] }
 
 export const SUPPORT_RHYTHM: { when: string; what: string; detail: string }[] = [
   { when: "Wtorek", what: "Mentoring biznesowy z Bartkiem", detail: "Co tydzień. Zadajesz tyle pytań, ile chcesz." },
-  { when: "Czwartek", what: "Optymalizacja kampanii Meta Ads", detail: "Co tydzień, z innymi właścicielami — zwykle 15–20 osób." },
+  { when: "Czwartek", what: "Optymalizacja kampanii Meta Ads", detail: "Co tydzień, z innymi właścicielami." },
   { when: "Telegram", what: "Kontakt 1:1 z Bartkiem + grupa właścicieli", detail: "Bartek odpowiada zwykle w ciągu kilku godzin. W grupie 61 aktywnych właścicieli studiów." },
-  { when: "Wyjazdy", what: "Spotkania na żywo z właścicielami", detail: "Raz lub kilka razy w roku: hotel 5*, spa, góry, rower." },
+  { when: "Wyjazdy", what: "Spotkania na żywo z właścicielami", detail: "Lilka razy w roku: hotel 5*, spa, góry, rower." },
 ];

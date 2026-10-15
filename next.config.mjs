@@ -1,9 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // /see-you was replaced by /materialy. Old links (emails, CRM, bookmarks)
-  // keep working; the query string is carried over.
+  // /see-you → /materialy → /przygotowanie. Old links (emails, CRM, links the
+  // setters already sent) keep working; the query string is carried over.
   async redirects() {
-    return [{ source: "/see-you", destination: "/materialy", permanent: true }];
+    return [
+      { source: "/see-you", destination: "/przygotowanie", permanent: true },
+      { source: "/materialy", destination: "/przygotowanie", permanent: true },
+    ];
   },
 
   // Hostnames allowed to load /_next/* assets from the dev server.

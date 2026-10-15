@@ -19,7 +19,7 @@ import { CaseStudiesSection } from "@/components/case-studies-section";
 import { FaqVideosSection } from "@/components/faq-section";
 
 /**
- * /materialy — MANDATORY pre-call materials. Two ways in:
+ * /przygotowanie — MANDATORY pre-call materials. Two ways in:
  *   - the application form redirects here (?zgloszenie=1) — it replaced /see-you
  *   - the setter sends this link before every decision call (replaces the
  *     pre-consultation emails)
@@ -27,7 +27,7 @@ import { FaqVideosSection } from "@/components/faq-section";
  *   rule + checklist (+ opt-out)
  *   → 1 kim jesteśmy → 2 dla kogo → 3 liczby → 4 ścieżka klienta i dlaczego
  *   → 5 playbook (obowiązkowy) → 6 co dostajesz → 7 wsparcie + rezultat
- *   → 8 polecajki (wywiady, case studies, FAQ wideo)
+ *   → 8 wywiady z właścicielami studiów (wywiady, case studies, FAQ wideo)
  *   → 9 sprawdź nas + ryzyko → 10 rozmowa decyzyjna (self-check)
  */
 // Reached only through the setter's link: keep it out of search.
@@ -58,7 +58,7 @@ export default function MaterialsPage() {
 
       <PlaybookSection
         eyebrow="5 · Playbook · obowiązkowy"
-        intro="Cały model od podszewki: jak wygląda i dlaczego wygląda właśnie tak. Przekartkuj go przed rozmową — to podstawa, od której zaczniemy, a nie coś, co będziemy tłumaczyć na rozmowie:"
+        intro="Cały model od podszewki: jak wygląda i dlaczego wygląda właśnie tak. Zapoznaj się z nim przed rozmową — to podstawa, od której zaczniemy, a nie coś, co będziemy tłumaczyć na rozmowie:"
         required
         layout="split"
       />

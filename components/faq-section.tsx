@@ -34,7 +34,7 @@ const FAQ_VIDEOS: FaqVideo[] = [
 export function FaqVideosSection({
   layout = "stack",
 }: {
-  /** `grid`: two videos per row from desktop up (used on /materialy). */
+  /** `grid`: two videos per row from desktop up (used on /przygotowanie). */
   layout?: "stack" | "grid";
 } = {}) {
   const grid = layout === "grid";

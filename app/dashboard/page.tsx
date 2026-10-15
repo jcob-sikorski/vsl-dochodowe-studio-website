@@ -737,7 +737,7 @@ const LANDING_SECTIONS: [string, string][] = [
   ["stopka", "Footer"],
 ];
 
-/** /materialy — the post-form page and the setter's mandatory pre-call link. */
+/** /przygotowanie — the post-form page and the setter's mandatory pre-call link. */
 const MATERIALS_SECTIONS: [string, string][] = [
   ["zasady", "Zasada + 3 kroki"],
   ["model", "1 · Kim jesteśmy + studia Bartka"],
@@ -747,7 +747,7 @@ const MATERIALS_SECTIONS: [string, string][] = [
   ["playbook", "5 · Playbook"],
   ["co-dostajesz", "6 · Co dostajesz"],
   ["wsparcie", "7 · Wsparcie"],
-  ["polecajki", "8 · Polecajki"],
+  ["polecajki", "8 · Wywiady z właścicielami studiów"],
   ["wywiady", "Client interviews"],
   ["historie", "Historie uczestników"],
   ["faq_wideo", "Video FAQ"],
@@ -779,7 +779,7 @@ const MATERIALS_TAP_LABELS: Record<string, string> = {
   ready: "Ticked all 3 steps (ready for the call)",
   check_model: "Ticked: read the model",
   check_playbook: "Ticked: playbook",
-  check_polecajki: "Ticked: watched 2 videos",
+  check_polecajki: "Ticked: watched 2 owner interviews",
   maps: "Opened Google Maps card",
   youtube: "Opened YouTube channel",
 };
@@ -995,7 +995,7 @@ function Engagement({ rows, error }: { rows: EngagementRow[]; error?: string }) 
     (e) => e.startsWith("cta_materialy_") || e.startsWith("interview_") || e === "playbook_download"
   );
 
-  // The landing visitors who went on to open /materialy.
+  // The landing visitors who went on to open /przygotowanie.
   const submitted = get(landing, "form_submitted");
 
   return (
@@ -1034,18 +1034,18 @@ function Engagement({ rows, error }: { rows: EngagementRow[]; error?: string }) 
       <h2 className="h2">Landing · taps</h2>
       <TapTable stats={landing} base={landingBase} events={landingTaps} />
 
-      <h2 className="h2">Materiały (/materialy) · sections reached</h2>
+      <h2 className="h2">Przygotowanie (/przygotowanie) · sections reached</h2>
       {materialsBase === 0 ? (
         <Notice
-          title="No /materialy visits in this range"
-          body="Nobody in this cohort has opened /materialy yet. If people have, run supabase/migrations/2026-10-14_materials_page.sql — until then the database rejects these events."
+          title="No /przygotowanie visits in this range"
+          body="Nobody in this cohort has opened /przygotowanie yet. If people have, run supabase/migrations/2026-10-14_materials_page.sql — until then the database rejects these events."
         />
       ) : (
         <>
           <div className="card">
             <ReachBars steps={materialsSteps} base={materialsBase} />
           </div>
-          <h2 className="h2">Materiały (/materialy) · taps</h2>
+          <h2 className="h2">Przygotowanie (/przygotowanie) · taps</h2>
           <TapTable stats={materials} base={materialsBase} events={materialsTaps} />
         </>
       )}

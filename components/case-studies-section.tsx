@@ -40,7 +40,7 @@ import { ScrollToFormCta } from "@/components/scroll-to-form-cta";
 interface CaseStudiesSectionProps {
   /** Show the "scroll to form" CTA buttons after each case study. Defaults to true. */
   showCtaButtons?: boolean;
-  /** `grid`: masonry columns from tablet up instead of one long column (used on /materialy). */
+  /** `grid`: masonry columns from tablet up instead of one long column (used on /przygotowanie). */
   layout?: "stack" | "grid";
 }
 

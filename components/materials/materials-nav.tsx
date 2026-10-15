@@ -11,7 +11,7 @@ const ITEMS: { id: string; label: string }[] = [
   { id: "playbook", label: "Playbook" },
   { id: "co-dostajesz", label: "Program" },
   { id: "wsparcie", label: "Wsparcie" },
-  { id: "polecajki", label: "Polecajki" },
+  { id: "polecajki", label: "Wywiady z właścicielami" },
   { id: "sprawdz-nas", label: "Sprawdź nas" },
   { id: "nastepny-krok", label: "Rozmowa" },
 ];

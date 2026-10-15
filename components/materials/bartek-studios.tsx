@@ -8,7 +8,7 @@ export function BartekStudios() {
   return (
     <div id="studia-bartka" className="mt-6 w-full scroll-mt-16 lg:mt-8">
       <p className="text-center text-[0.68rem] font-extrabold uppercase tracking-[0.14em] text-neutral-500">
-        4 studia Bartka · kliknij, żeby sprawdzić w Google Maps
+        Cały know-how Sportowe Przedmieście · kliknij, żeby sprawdzić w Google Maps
       </p>
 
       <ul className="mt-3 grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3">

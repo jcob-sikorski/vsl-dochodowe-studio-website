@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/site";
 
-/** Only pages meant to be found. /materialy (noindex) and /dashboard are left out. */
+/** Only pages meant to be found. /przygotowanie (noindex) and /dashboard are left out. */
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
   return [

@@ -69,7 +69,7 @@ const INPUT_BAD = "border-red-400 focus:border-red-500 focus:ring-red-500/15";
 export function RegisterForm({
   className = "",
   onSuccess,
-  redirectTo = "/materialy?zgloszenie=1",
+  redirectTo = "/przygotowanie?zgloszenie=1",
   clientCategory = "Consultation Applicant",
 }: RegisterFormProps) {
   const router = useRouter();

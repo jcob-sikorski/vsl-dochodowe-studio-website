@@ -1,7 +1,7 @@
 import { MATERIALS_CHECKLIST } from "@/lib/materials";
 
 /**
- * Top of /materialy. Says the rule before anything else: these materials are
+ * Top of /przygotowanie. Says the rule before anything else: these materials are
  * a condition of the call, and if they show it's not a fit — cancel.
  */
 export function MaterialsHeroSection() {

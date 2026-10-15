@@ -53,14 +53,14 @@ function FileIcon() {
 interface PlaybookSectionProps {
   eyebrow?: string;
   intro?: string;
-  /** Shows the "obowiązkowe" badge and reading time (used on /materialy). */
+  /** Shows the "obowiązkowe" badge and reading time (used on /przygotowanie). */
   required?: boolean;
   /** `split`: on desktop, pitch + download on the left, contents on the right. */
   layout?: "stack" | "split";
 }
 
 const DEFAULT_INTRO =
-  "Na rozmowę przychodzą osoby przygotowane. Przekartkuj playbook, zanim zadzwoni Paweł lub Olaf, a od razu zajmiemy się Twoimi liczbami zamiast podstaw:";
+  "Na rozmowę przychodzą osoby przygotowane. Zapoznaj się z playbookiem, zanim zadzwoni nasz ekspert, a od razu zajmiemy się Twoimi liczbami zamiast podstaw:";
 
 export function PlaybookSection({
   eyebrow = "Materiały dodatkowe",

@@ -43,7 +43,7 @@ let flushTimer: number | undefined;
 let listening = false;
 
 function currentPage(): Page {
-  return window.location.pathname.startsWith("/materialy") ? "materials" : "landing";
+  return window.location.pathname.startsWith("/przygotowanie") ? "materials" : "landing";
 }
 
 function isBot(): boolean {
