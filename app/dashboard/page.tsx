@@ -9,10 +9,15 @@
 
 import { HEADLINE_EXPERIMENT, PREVIOUS_EXPERIMENT_IDS, getVariant } from "@/lib/ab";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SyncSpendButton } from "@/components/sync-spend-button";
+import { lastSpendSync } from "@/lib/meta-spend";
 import { getSupabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+// The "Sync spend now" action runs inside this page's function and waits on
+// the Meta Marketing API.
+export const maxDuration = 60;
 
 export const metadata = {
   title: "Dashboard",
@@ -168,10 +173,11 @@ export default async function DashboardPage({
     first(params.from) ?? isoDate(new Date(Date.parse(to) - (range - 1) * 86_400_000));
 
   const supabase = getSupabase();
+  const lastSynced = await lastSpendSync();
 
   if (!supabase) {
     return (
-      <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment} device={device}>
+      <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment} device={device} lastSynced={lastSynced}>
         <Notice
           title="Supabase isn't configured"
           body="Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, then run supabase/schema.sql in the SQL editor."
@@ -188,7 +194,7 @@ export default async function DashboardPage({
 
   if (error) {
     return (
-      <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment} device={device}>
+      <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment} device={device} lastSynced={lastSynced}>
         <Notice title="Query failed" body={error.message} tone="critical" />
       </Shell>
     );
@@ -320,7 +326,7 @@ export default async function DashboardPage({
   ];
 
   return (
-    <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment} device={device}>
+    <Shell from={from} to={to} range={range} traffic={traffic} experiment={experiment} device={device} lastSynced={lastSynced}>
       <HealthStrip items={health} />
 
       {/* ---- headline economics ------------------------------------- */}
@@ -1124,7 +1130,7 @@ async function loadHealth(
         tone: "critical",
         title: "No ad spend synced yet",
         hint: "every cost reads zero",
-        body: "Every cost on this page is zero until the spend sync runs. Trigger /api/cron/meta-spend?days=30.",
+        body: "Every cost on this page is zero until the spend sync runs. Press “Sync spend now” (top right), or trigger /api/cron/meta-spend?days=30 for a longer backfill.",
       });
     } else {
       const hours = (Date.now() - Date.parse(last.synced_at)) / 3_600_000;
@@ -1563,6 +1569,7 @@ function Shell({
   traffic,
   experiment,
   device = "all",
+  lastSynced = null,
 }: {
   children: React.ReactNode;
   from: string;
@@ -1571,6 +1578,7 @@ function Shell({
   traffic: string;
   experiment: string;
   device?: Device;
+  lastSynced?: string | null;
 }) {
   const ranges = [7, 14, 30, 90];
   // Keep a finished test selected while the range and traffic filters change.
@@ -1611,6 +1619,7 @@ function Shell({
             <a href={`?range=${range}&traffic=paid${exp}`} className={`chip${traffic === "paid" ? " on" : ""}`}>Paid</a>
             <a href={`?range=${range}&traffic=all${exp}`} className={`chip${traffic === "all" ? " on" : ""}`}>All</a>
           </div>
+          <SyncSpendButton lastSynced={lastSynced} />
           <ThemeToggle />
         </nav>
       </header>
@@ -1937,6 +1946,34 @@ const CSS = `
 }
 .themebtn:hover { background: var(--panel-2); color: var(--text-primary); border-color: var(--border-strong); }
 .themebtn-icon { display: inline-flex; width: 15px; height: 15px; }
+
+/* ---- sync spend -------------------------------------------------------- */
+.syncwrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.syncbtn {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  height: 32px; padding: 0 11px;
+  font: inherit; font-size: 12px; font-weight: 500;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 110ms ease, color 110ms ease, border-color 110ms ease;
+}
+.syncbtn:hover:not(:disabled) { background: var(--panel-2); color: var(--text-primary); border-color: var(--border-strong); }
+.syncbtn:disabled { cursor: progress; opacity: 0.75; }
+.syncicon { width: 13px; height: 13px; flex: none; }
+.syncicon.spin { animation: syncspin 0.9s linear infinite; }
+@keyframes syncspin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .syncicon.spin { animation: none; } }
+.syncnote {
+  max-width: 340px; font-size: 11.5px; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.syncnote.bad { color: var(--critical); }
+@media (max-width: 720px) {
+  .syncwrap { flex-wrap: wrap; }
+  .syncnote { max-width: 100%; white-space: normal; }
+}
 .chip.on {
   background: var(--chip-on); color: var(--text-primary); font-weight: 550;
   box-shadow: inset 0 1px 0 var(--chip-on-edge), 0 1px 2px rgba(11, 11, 11, 0.06);

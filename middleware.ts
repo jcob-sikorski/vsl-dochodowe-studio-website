@@ -27,6 +27,7 @@ import {
   pickVariantId,
   serializeVariantCookie,
 } from "@/lib/ab";
+import { checkDashboardAuth } from "@/lib/dashboard-auth";
 
 export const config = {
   matcher: ["/", "/dashboard/:path*"],
@@ -126,42 +127,21 @@ function withCookies(header: string, values: Record<string, string>): string {
  * or indexed.
  *
  * Set DASHBOARD_USER and DASHBOARD_PASSWORD. If either is missing the
- * dashboard returns 503 rather than falling open.
+ * dashboard returns 503 rather than falling open. The check itself lives in
+ * lib/dashboard-auth.ts so the dashboard's server actions can reuse it.
  * -------------------------------------------------------------------------- */
 
 function dashboardAuth(request: NextRequest) {
-  const user = (process.env.DASHBOARD_USER || "").trim();
-  const password = (process.env.DASHBOARD_PASSWORD || "").trim();
+  const result = checkDashboardAuth(request.headers.get("authorization"));
 
-  if (!user || !password) {
+  if (result === "not_configured") {
     return new NextResponse("Dashboard not configured.", {
       status: 503,
       headers: { "Content-Type": "text/plain" },
     });
   }
 
-  const header = request.headers.get("authorization") ?? "";
-  const match = /^Basic\s+(.+)$/i.exec(header.trim());
-
-  if (match) {
-    let decoded = "";
-    try {
-      decoded = atob(match[1]);
-    } catch {
-      decoded = "";
-    }
-
-    const separator = decoded.indexOf(":");
-    const givenUser = separator === -1 ? "" : decoded.slice(0, separator);
-    const givenPassword = separator === -1 ? "" : decoded.slice(separator + 1);
-
-    // Constant-time-ish: compare both halves regardless of the first result, so
-    // a wrong username and a wrong password take the same path.
-    const userOk = safeEqual(givenUser, user);
-    const passwordOk = safeEqual(givenPassword, password);
-
-    if (userOk && passwordOk) return NextResponse.next();
-  }
+  if (result === "ok") return NextResponse.next();
 
   return new NextResponse("Authentication required.", {
     status: 401,
@@ -170,18 +150,4 @@ function dashboardAuth(request: NextRequest) {
       "Content-Type": "text/plain",
     },
   });
-}
-
-/** Length-independent comparison. Edge runtime has no crypto.timingSafeEqual. */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    // Still walk a fixed number of characters so length isn't a timing oracle.
-    let sink = 0;
-    for (let i = 0; i < b.length; i++) sink |= b.charCodeAt(i);
-    return sink === -1;
-  }
-
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }
