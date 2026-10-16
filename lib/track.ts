@@ -26,7 +26,7 @@
 
 import Clarity from "@microsoft/clarity";
 
-export const PAGE_VERSION = "narrative_v1";
+export const PAGE_VERSION = "copy_test_v5";
 
 const ENDPOINT = "/api/track";
 const FLUSH_AFTER_MS = 2000;

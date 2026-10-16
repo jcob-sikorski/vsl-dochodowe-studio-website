@@ -1,7 +1,8 @@
 /* -------------------------------------------------------------------------- *
  * src/lib/ab.ts
  *
- * The headline split test, in one file.
+ * The landing-page split test, in one file. (Named HEADLINE_EXPERIMENT for
+ * history: it started as a headline test; v5 tests the copy under the VSL.)
  *
  * Everything you will ever want to edit lives in HEADLINE_EXPERIMENT below:
  * the variants, their copy, and how traffic is divided between them. The rest
@@ -47,6 +48,11 @@ export interface AbVariant {
   headline: string;
   /** Optional per-variant subheadline; falls back to the shared one. */
   subheadline?: string;
+  /**
+   * Show the narrative copy between the VSL and the case studies (Dlaczego
+   * teraz, Rozwidlenie, Powody, Dla kogo, FAQ). Defaults to true.
+   */
+  showNarrative?: boolean;
 }
 
 export interface AbExperiment {
@@ -63,43 +69,36 @@ export interface AbExperiment {
  *  EDIT BELOW THIS LINE
  * ========================================================================== */
 
+/** Headline A from v4 — the one every arm of v5 shows. */
+const HEADLINE_A =
+  "Wdróż sprawdzony model studia treningowego i generuj 20–50 tys. zł miesięcznie dzięki procesom, sprzedaży i zespołowi — bez prowadzenia treningów";
+
 export const HEADLINE_EXPERIMENT: AbExperiment = {
-  // v4 (2026-10-09): same three headlines as v3, but the page around them
-  // changed for every arm — qualification bar, "APLIKUJ DO PROGRAMU" CTA,
-  // and the Okno / Rozwidlenie / Selekcja sections. A new id reshuffles all
-  // visitors and keeps v3 numbers from mixing with the new page.
-  id: "headline_2026_10_v4",
+  // v5 (2026-10-16): copy test. Same headline (v4's A) for everyone; the only
+  // difference is whether the narrative copy under the VSL (Dlaczego teraz,
+  // Rozwidlenie, Powody, Dla kogo, FAQ) is shown before the case studies.
+  // v4 (headline A vs B) ended without a winner: A 10/207, B 8/194.
+  id: "copy_2026_10_v5",
   enabled: true,
 
   subheadline:
     "Stań się niezależnym przedsiębiorcą. Naucz się gotowego modelu wdrożenia od A do Z, aby zarabiać 20–50 tys. miesięcznie przy 50–80% marży, pracując 5 godzin tygodniowo.",
-    variants: [
-      {
-        id: "control",
-        label: "A — Gotowy model i niezależność",
-        weight: 50,
-        headline:
-          "Wdróż sprawdzony model studia treningowego i generuj 20–50 tys. zł miesięcznie dzięki procesom, sprzedaży i zespołowi — bez prowadzenia treningów",
-      },
-      {
-        id: "b",
-        label: "B — Gotowy model A–Z",
-        weight: 50,
-        headline:
-          "Nie buduj studia metodą prób i błędów. Wdróż gotowy model od A do Z do 20–50 tys. zł miesięcznie",
-      },
-      {
-        id: "c",
-        label: "C — Studio bez Ciebie na sali",
-        // Killed 2026-10-11: weight 0 = no NEW visitors get C. Kept in the list
-        // (not deleted) so browsers already assigned C keep seeing the same
-        // headline and their data stays valid. A and B still split evenly, so
-        // the A-vs-B comparison is unaffected and the test id stays the same.
-        weight: 0,
-        headline:
-          "Zbuduj studio, które generuje 20–50 tys. zł miesięcznie dzięki procesom, sprzedaży i zespołowi — bez Ciebie na sali",
-      },
-    ]
+  variants: [
+    {
+      id: "control",
+      label: "A — Z treścią pod VSL",
+      weight: 50,
+      headline: HEADLINE_A,
+      showNarrative: true,
+    },
+    {
+      id: "no_copy",
+      label: "B — Bez treści: VSL → historie uczestników",
+      weight: 50,
+      headline: HEADLINE_A,
+      showNarrative: false,
+    },
+  ],
 };
 
 /**
@@ -107,7 +106,20 @@ export const HEADLINE_EXPERIMENT: AbExperiment = {
  * id; the dashboard can still show them with ?experiment=<id>. When you bump
  * HEADLINE_EXPERIMENT.id, move the old id to the top of this list.
  */
-export const PREVIOUS_EXPERIMENT_IDS: string[] = ["headline_2026_09_v3"];
+export const PREVIOUS_EXPERIMENT_IDS: string[] = ["headline_2026_10_v4", "headline_2026_09_v3"];
+
+/**
+ * Variant labels of finished tests, so the dashboard still names their arms
+ * correctly (variant ids like "control" get reused by later tests). First
+ * entry = that test's control.
+ */
+export const PREVIOUS_VARIANT_LABELS: Record<string, Record<string, string>> = {
+  headline_2026_10_v4: {
+    control: "A — Gotowy model i niezależność",
+    b: "B — Gotowy model A–Z",
+    c: "C — Studio bez Ciebie na sali",
+  },
+};
 
 /* ========================================================================== *
  *  EDIT ABOVE THIS LINE

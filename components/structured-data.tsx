@@ -18,7 +18,8 @@ import {
  * Left out on purpose: VideoObject (needs the VSL's real upload date) and
  * offers/prices (not shown on this page).
  */
-export function StructuredData() {
+/** `includeFaq: false` when the page variant doesn't show the FAQ (split test). */
+export function StructuredData({ includeFaq = true }: { includeFaq?: boolean } = {}) {
   const org = `${SITE_URL}/#organization`;
   const site = `${SITE_URL}/#website`;
   const page = `${SITE_URL}/#webpage`;
@@ -74,16 +75,20 @@ export function StructuredData() {
         areaServed: { "@type": "Country", name: "Polska" },
         audience: { "@type": "BusinessAudience", name: "Właściciele studiów treningowych i trenerzy personalni" },
       },
-      {
-        "@type": "FAQPage",
-        "@id": `${SITE_URL}/#faq`,
-        isPartOf: { "@id": page },
-        mainEntity: TEXT_FAQ.map((f) => ({
-          "@type": "Question",
-          name: f.q,
-          acceptedAnswer: { "@type": "Answer", text: f.a },
-        })),
-      },
+      ...(includeFaq
+        ? [
+            {
+              "@type": "FAQPage",
+              "@id": `${SITE_URL}/#faq`,
+              isPartOf: { "@id": page },
+              mainEntity: TEXT_FAQ.map((f) => ({
+                "@type": "Question",
+                name: f.q,
+                acceptedAnswer: { "@type": "Answer", text: f.a },
+              })),
+            },
+          ]
+        : []),
     ],
   };
 

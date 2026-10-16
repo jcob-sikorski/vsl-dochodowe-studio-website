@@ -30,6 +30,9 @@ import {
  *   → OKNO (why now) → ROZWIDLENIE (decide today vs. 5 more years)
  *   → reasons → SELEKCJA (who it's for, how qualification works)
  *   → proof → final fork + CTA
+ *
+ * Split test v5 (lib/ab.ts): the `no_copy` arm skips everything between the
+ * hero and the case studies.
  */
 export const dynamic = "force-dynamic";
 
@@ -37,6 +40,7 @@ export default async function Home() {
   const jar = await cookies();
   const variantId = parseVariantCookie(jar.get(AB_VARIANT_COOKIE)?.value);
   const variant = getVariant(variantId);
+  const showNarrative = variant.showNarrative !== false;
 
   return (
     <main>
@@ -48,15 +52,19 @@ export default async function Home() {
 
       <VslHeroSection variant={variant} />
 
-      <WhyNowSection />
+      {showNarrative && (
+        <>
+          <WhyNowSection />
 
-      <CrossroadsSection />
+          <CrossroadsSection />
 
-      <ReasonsSection />
+          <ReasonsSection />
 
-      <SelectionSection />
+          <SelectionSection />
 
-      <TextFaqSection eyebrow="Pytania" before="Najczęstsze pytania o" underline="własne studio" />
+          <TextFaqSection eyebrow="Pytania" before="Najczęstsze pytania o" underline="własne studio" />
+        </>
+      )}
 
       <CaseStudiesSection />
 
@@ -64,7 +72,7 @@ export default async function Home() {
 
       <LegalFooter />
 
-      <StructuredData />
+      <StructuredData includeFaq={showNarrative} />
     </main>
   );
 }

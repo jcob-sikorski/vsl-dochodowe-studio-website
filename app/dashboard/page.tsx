@@ -7,7 +7,7 @@
  * Protected by HTTP Basic Auth in src/middleware.ts.
  * -------------------------------------------------------------------------- */
 
-import { HEADLINE_EXPERIMENT, PREVIOUS_EXPERIMENT_IDS, getVariant } from "@/lib/ab";
+import { HEADLINE_EXPERIMENT, PREVIOUS_EXPERIMENT_IDS, PREVIOUS_VARIANT_LABELS, getVariant } from "@/lib/ab";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SyncSpendButton } from "@/components/sync-spend-button";
 import { lastSpendSync } from "@/lib/meta-spend";
@@ -403,7 +403,7 @@ export default async function DashboardPage({
           </a>
         ))}
       </nav>
-      <AbTest rows={abRows} error={ab.error?.message} traffic={traffic} />
+      <AbTest rows={abRows} error={ab.error?.message} traffic={traffic} experiment={experiment} />
 
       {/* ---- page engagement ------------------------------------------ */}
       <h2 className="h2">Page engagement · where visitors stop and what they tap</h2>
@@ -570,11 +570,21 @@ function AbTest({
   rows,
   error,
   traffic,
+  experiment,
 }: {
   rows: AbRow[];
   error?: string;
   traffic: string;
+  experiment: string;
 }) {
+  // A finished test is labelled from its own record, not from the running
+  // config — variant ids like "control" get reused by later tests.
+  const isCurrent = experiment === HEADLINE_EXPERIMENT.id;
+  const pastLabels = isCurrent ? undefined : PREVIOUS_VARIANT_LABELS[experiment];
+  const variantIds = isCurrent ? HEADLINE_EXPERIMENT.variants.map((v) => v.id) : Object.keys(pastLabels ?? {});
+  const labelFor = (id: string | null) =>
+    isCurrent ? getVariant(id).label : pastLabels?.[id ?? ""] ?? id ?? "—";
+
   if (error) {
     return (
       <Notice
@@ -599,7 +609,7 @@ function AbTest({
 
   // Config order is the truth: the first variant is the control, and rows the
   // config no longer knows about (an old variant still in the data) sort last.
-  const order = new Map(HEADLINE_EXPERIMENT.variants.map((v, i) => [v.id, i]));
+  const order = new Map(variantIds.map((id, i) => [id, i]));
   const sorted = [...rows].sort(
     (a, b) => (order.get(a.variant_id ?? "") ?? 99) - (order.get(b.variant_id ?? "") ?? 99)
   );
@@ -665,9 +675,8 @@ function AbTest({
                 ? undefined
                 : twoProportionP(controlLeads, controlViews, leads, views);
 
-              const variant = getVariant(r.variant_id);
               const label = order.has(r.variant_id ?? "")
-                ? variant.label
+                ? labelFor(r.variant_id)
                 : `${r.variant_id} (retired)`;
 
               return (
