@@ -10,7 +10,7 @@ export function VerifySection() {
     {
       id: "maps",
       title: "Google Maps",
-      body: "4 studia Bartka — zdjęcia, adresy i opinie klientów.",
+      body: "Studia Bartka i uczestników programu — zdjęcia, adresy i opinie klientów.",
       href: "#studia-bartka",
       external: false,
     },

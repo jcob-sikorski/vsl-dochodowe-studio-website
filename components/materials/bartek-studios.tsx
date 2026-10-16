@@ -3,7 +3,7 @@
 import { BARTEK_STUDIOS } from "@/lib/materials";
 import { track } from "@/lib/track";
 
-/** Bartek's 4 studios: main photo + rating, each card opens Google Maps. */
+/** Bartek's studios: main photo + rating, each card opens Google Maps. */
 export function BartekStudios() {
   return (
     <div id="studia-bartka" className="mt-6 w-full scroll-mt-16 lg:mt-8">
@@ -11,7 +11,7 @@ export function BartekStudios() {
         Cały know-how Sportowe Przedmieście · kliknij, żeby sprawdzić w Google Maps
       </p>
 
-      <ul className="mt-3 grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3">
+      <ul className="mt-3 grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3">
         {BARTEK_STUDIOS.map((s) => (
           <li key={s.id}>
             <a

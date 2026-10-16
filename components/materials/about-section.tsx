@@ -1,6 +1,7 @@
 import { CheckMark, NarrativeShell, SectionHeader } from "@/components/narrative/section-header";
 import { ABOUT_STATS, END_CLIENT, FIT_SPEC } from "@/lib/materials";
 import { BartekStudios } from "@/components/materials/bartek-studios";
+import { ParticipantStudios } from "@/components/materials/participant-studios";
 
 /** Kim jesteśmy + dla kogo jest model. */
 export function AboutSection() {
@@ -37,6 +38,8 @@ export function AboutSection() {
         </div>
 
         <BartekStudios />
+
+        <ParticipantStudios />
       </NarrativeShell>
 
       <NarrativeShell id="dla-kogo" width="wide">

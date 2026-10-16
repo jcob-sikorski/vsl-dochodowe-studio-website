@@ -50,7 +50,7 @@ export const ABOUT_STATS: { value: string; label: string }[] = [
 ];
 
 /**
- * Bartek's 4 studios, linked to their Google Maps listings. Photos are the
+ * Bartek's studios (Sportowe Przedmieście), linked to their Google Maps listings. Photos are the
  * listings' main photos, saved to /public/studios (Google photo URLs expire).
  * Ratings/review counts are a snapshot from 14.10.2026 — refresh now and then.
  */
@@ -97,16 +97,131 @@ export const BARTEK_STUDIOS: {
     mapsUrl:
       "https://www.google.com/maps/place/Sportowe+Przedmie%C5%9Bcie+Studio+Treningu+Personalnego+dla+Kobiet+%C5%81%C4%99czyca/@52.059355,19.1967356,17z/data=!3m1!4b1!4m6!3m5!1s0x471ba5cfc686ea47:0x9702cb93592eb7ed!8m2!3d52.059355!4d19.1993105!16s%2Fg%2F11sk4rp2jq?entry=ttu",
   },
+];
+
+/**
+ * Studios of program participants, shown under Bartek's studios. Each links to
+ * its Google Maps listing; `caseId` jumps to the participant's case study in
+ * section 8 (the CaseStudiesSection `locationKey`).
+ * Photos: the participant (from their case study) or, where we have no case
+ * study, the listing's main photo — all saved to /public/participants.
+ * Ratings/review counts are a snapshot from 16.10.2026.
+ */
+export const PARTICIPANT_STUDIOS: {
+  id: string;
+  studio: string;
+  city: string;
+  owner?: string;
+  result?: string;
+  photo: string;
+  rating: string;
+  reviews: number;
+  mapsUrl: string;
+  caseId?: string;
+}[] = [
   {
-    id: "mikolow",
-    name: "PG Power Studio",
+    id: "gym-clinic",
+    studio: "Gym Clinic",
+    city: "Józefów",
+    owner: "Eryk Witecki",
+    result: "Z 25 tys. zł na sali do 4 trenerów i 40 tys. zł zysku mies.",
+    photo: "/participants/participant-eryk-witecki.jpg",
+    rating: "5,0",
+    reviews: 21,
+    mapsUrl:
+      "https://www.google.com/maps/place/GYM+CLINIC/@52.1254203,21.1966641,17z/data=!3m1!4b1!4m6!3m5!1s0x47192b50f02b3949:0x8b8ce17c9e86ac85!8m2!3d52.1254203!4d21.199239!16s%2Fg%2F11xv9jpzgn?entry=ttu",
+    caseId: "case_study_7",
+  },
+  {
+    id: "trener-ka",
+    studio: "Trener.Ka",
+    city: "Suszec",
+    owner: "Karolina Owczarzak",
+    result: "Studio 100 m² w gminie i 40 tys. zł zysku mies.",
+    photo: "/participants/participant-karolina-owczarzak.jpg",
+    rating: "5,0",
+    reviews: 10,
+    mapsUrl:
+      "https://www.google.com/maps/place/Trener.Ka+Studio+Treningu+Personalnego+-+Karolina+Owczarzak/@50.0328772,18.7744936,17z/data=!3m1!4b1!4m6!3m5!1s0x4716b3cda357fc6d:0x8dd01d173b104c44!8m2!3d50.0328773!4d18.7793645!16s%2Fg%2F11yj_b5y57?entry=ttu",
+    caseId: "case_study_5",
+  },
+  {
+    id: "steel-motion",
+    studio: "Steel Motion",
+    city: "Tychy",
+    owner: "Adrian i Konrad",
+    result: "30 tys. zł zysku mies., 7 trenerów i w pełni oddelegowane studio",
+    photo: "/participants/participant-adrian-konrad.jpg",
+    rating: "5,0",
+    reviews: 14,
+    mapsUrl:
+      "https://www.google.com/maps/place/Steel+Motion+Studio+Treningu+Personalnego+Tychy/@50.1367863,18.977767,17z/data=!3m1!4b1!4m6!3m5!1s0x4716c94530bf4cb7:0xd9f4b7bb8c581802!8m2!3d50.1367863!4d18.977767!16s%2Fg%2F11xft0rnp4?entry=ttu",
+    caseId: "case_study_13",
+  },
+  {
+    id: "pg-power",
+    studio: "PG Power Studio",
     city: "Mikołów",
-    address: "Jana Koja 3, 43-190 Mikołów",
-    photo: "/studios/studio-mikolow.jpg",
+    owner: "Patryk i Paula Grzemscy",
+    result: "2 studia i wolny czas na własną zajawkę",
+    photo: "/participants/participant-pg-power.jpg",
     rating: "5,0",
     reviews: 43,
     mapsUrl:
-      "https://www.google.com/maps/place/PG+Power+Studio+Miko%C5%82%C3%B3w+-+Studio+Treningu+Personalnego/@50.1770082,18.8994821,17z/data=!3m1!4b1!4m6!3m5!1s0x4716cb59d37a5881:0xdd0cf618191f4b56!8m2!3d50.1770082!4d18.902057!16s%2Fg%2F11wwjf27qy?entry=ttu",
+      "https://www.google.com/maps/place/PG+Power+Studio+Miko%C5%82%C3%B3w+-+Studio+Treningu+Personalnego/@50.1770081,18.8971861,17z/data=!3m1!4b1!4m6!3m5!1s0x4716cb59d37a5881:0xdd0cf618191f4b56!8m2!3d50.1770082!4d18.902057!16s%2Fg%2F11wwjf27qy?entry=ttu",
+    caseId: "case_study_6",
+  },
+  {
+    id: "sto-power",
+    studio: "S.T.O. Power",
+    city: "Łódź",
+    owner: "Adam Stołowski",
+    result: "Ułożony proces sprzedaży i wysoka marża jeszcze przed otwarciem",
+    photo: "/participants/participant-adam-stolowski.jpg",
+    rating: "5,0",
+    reviews: 19,
+    mapsUrl:
+      "https://www.google.com/maps/place/S.T.O.POWER+STUDIO+TRENINGU+PERSONALNEGO/@51.7182702,19.4784199,17z/data=!3m1!4b1!4m6!3m5!1s0x292bea3690c0ad67:0x8d49a791b25bb957!8m2!3d51.7182702!4d19.4809948!16s%2Fg%2F11ylcybcxr?entry=ttu",
+    caseId: "case_study_12",
+  },
+  {
+    id: "kobiecy-portal",
+    studio: "Kobiecy Portal",
+    city: "Lublin",
+    owner: "Igor Czobot",
+    result: "Studio dla kobiet i plany kolejnej placówki",
+    photo: "/participants/participant-igor-czobot.jpg",
+    rating: "5,0",
+    reviews: 4,
+    mapsUrl:
+      "https://www.google.com/maps/place/Kobiecy+Portal+Studio+Treningu+Personalnego+Lublin+Felin/@51.235628,22.619525,17z/data=!4m15!1m8!3m7!1s0x472257f34fbc0fe7:0x5796d0a5fa0fb76c!2sKobiecy+Portal+Studio+Treningu+Personalnego+Lublin+Felin!8m2!3d51.235628!4d22.619525!10e5!16s%2Fg%2F11ms5mdqm1!3m5!1s0x472257f34fbc0fe7:0x5796d0a5fa0fb76c!8m2!3d51.235628!4d22.619525!16s%2Fg%2F11ms5mdqm1?entry=ttu",
+    caseId: "case_study_4",
+  },
+  {
+    id: "gym87",
+    studio: "Gym87 Studio Metamorfoz",
+    city: "Jaworzno",
+    owner: "Michał Mekitow Humeńczyk",
+    result: "Od 2 studiów do 3, menadżer i poukładane procesy",
+    photo: "/participants/studio-gym87.jpg",
+    rating: "5,0",
+    reviews: 72,
+    mapsUrl:
+      "https://www.google.com/maps/place/Gym87+Studio+Metamorfoz+Jaworzno/@50.2052513,19.2650072,17z/data=!3m1!4b1!4m6!3m5!1s0x4716c3389ed0320f:0xe1713235a9a0acc7!8m2!3d50.2052513!4d19.2675821!16s%2Fg%2F11k9k3j0sp?entry=ttu",
+    caseId: "case_study_10",
+  },
+  {
+    id: "krzepa",
+    studio: "Krzepa",
+    city: "Bielsko-Biała",
+    owner: "Michał Cichy",
+    result: "Od 2 studiów do 3 i poukładana sieć w okolicy",
+    photo: "/participants/studio-krzepa.jpg",
+    rating: "5,0",
+    reviews: 30,
+    mapsUrl:
+      "https://www.google.com/maps/place/KRZEPA-Studio+treningowe%2FBielsko-Bia%C5%82a/@49.8169602,19.0436164,17z/data=!3m1!4b1!4m6!3m5!1s0x4da3d63cfe582e69:0x5cacb151867eb545!8m2!3d49.8169602!4d19.0461913!16s%2Fg%2F11twj4gbhj?entry=ttu",
+    caseId: "case_study_16",
   },
 ];
 

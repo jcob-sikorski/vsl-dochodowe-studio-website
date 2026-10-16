@@ -789,6 +789,7 @@ function tapLabel(event: string): string {
     const key = event.slice("cta_materialy_".length);
     if (key.startsWith("nav_")) return `Menu → ${key.slice(4)}`;
     if (key.startsWith("studio_")) return `Opened studio on Maps: ${key.slice(7)}`;
+    if (key.startsWith("case_")) return `Jumped to case study: ${key.slice(5)}`;
     return MATERIALS_TAP_LABELS[key] ?? key;
   }
   if (event.startsWith("cta_case_study_")) return `Under case study #${event.slice("cta_case_study_".length)}`;

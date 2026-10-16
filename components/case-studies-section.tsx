@@ -271,10 +271,11 @@ export function CaseStudiesSection({ showCtaButtons = true, layout = "stack" }: 
   const items = CASE_STUDIES.map((cs, index) => (
     <React.Fragment key={cs.locationKey}>
       <div
+        id={cs.locationKey}
         className={
           grid
-            ? "mb-8 flex w-full break-inside-avoid flex-col items-center sm:mb-9"
-            : `flex w-full flex-col items-center ${index === 0 ? "mt-6" : "mt-7"}`
+            ? "mb-8 flex w-full scroll-mt-16 break-inside-avoid flex-col items-center sm:mb-9"
+            : `flex w-full scroll-mt-16 flex-col items-center ${index === 0 ? "mt-6" : "mt-7"}`
         }
       >
         <h3
