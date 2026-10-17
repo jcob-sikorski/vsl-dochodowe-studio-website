@@ -337,25 +337,6 @@ export function CaseStudiesSection({ showCtaButtons = true, layout = "stack" }: 
         ) : (
           items
         )}
-
-        {/* Bottom Highlighter Banner */}
-        <div className={`mt-8 sm:mt-10 flex w-full justify-center ${grid ? "max-w-xl lg:mt-4" : ""}`}>
-          <div className="w-[90%] sm:w-[85%] bg-[#faea75] py-1 sm:py-1.5 text-center">
-            <h3 className="text-[1.18rem] min-[390px]:text-[1.32rem] sm:text-[1.48rem] font-bold leading-tight tracking-tight text-neutral-950">
-              I{" "}
-              <span className="underline decoration-neutral-950 decoration-[1.8px] sm:decoration-[2px] underline-offset-[3px] [text-decoration-skip-ink:none]">
-                50+ innych właścicieli...
-              </span>
-            </h3>
-          </div>
-        </div>
-
-        {/* Social Proof Context Subtext */}
-        <p className="mt-2 text-center text-[0.78rem] sm:text-[0.84rem] text-neutral-500 max-w-[21rem]">
-          M.in. Joanna Wójcik (Silna Studio: zajechanie na sali zamienione w 3 trenerów i drugie
-          studio), Klaudia Ostrowska (Fitko Toruń: 40–50 tys. zł na rękę, zarządzanie z podróży) czy
-          Adrian i Konrad (Stillmotion Tychy: 7 trenerów, 30 tys. zł zysku i oddelegowana sprzedaż).
-        </p>
       </div>
     </section>
   );
