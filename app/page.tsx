@@ -4,6 +4,7 @@ import { VslHeroSection } from "@/components/vsl-hero-section";
 import { LegalFooter } from "@/components/legal-footer";
 import { SectionTracker } from "@/components/section-tracker";
 import { CaseStudiesSection } from "@/components/case-studies-section";
+import { ProofWallSection } from "@/components/proof-wall-section";
 import { AbViewBeacon } from "@/components/ab-view-beacon";
 import { QualificationBar } from "@/components/narrative/qualification-bar";
 import { WhyNowSection } from "@/components/narrative/why-now-section";
@@ -67,6 +68,8 @@ export default async function Home() {
       )}
 
       <CaseStudiesSection />
+
+      <ProofWallSection />
 
       <FinalDecisionSection />
 

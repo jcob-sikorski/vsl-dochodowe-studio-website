@@ -58,18 +58,6 @@ interface CaseStudy {
 
 const CASE_STUDIES: CaseStudy[] = [
   {
-    name: "Ela Ziółkowska",
-    achievement: "20 tys. zł zysku mies.",
-    locationKey: "case_study_1",
-    media: [
-      {
-        type: "video",
-        muxSrc: "https://player.mux.com/ZBeqrGS00CasLkKCYd3DDOutmmfZYpFHGyPXaZ8t2f4g",
-        aspectClass: "aspect-[9/16]",
-      },
-    ],
-  },
-  {
     name: "Joanna Wójcik",
     achievement: "Silna Studio — od wizji bankructwa do 54 tys. zł zysku mies.",
     locationKey: "case_study_3",
